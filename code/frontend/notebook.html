@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Notebook Viewer</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; margin: 0; padding: 0; }
+        .toolbar { padding: 12px 20px; background: #f7f7f7; border-bottom: 1px solid #ddd; display: flex; align-items: center; gap: 12px; }
+        .toolbar a, .toolbar button { text-decoration: none; padding: 8px 20px; border-radius: 6px; font-size: 14px; font-weight: 500; border: none; cursor: pointer; }
+        .btn-back { background: #eee; color: #333; }
+        .btn-exec { background: #f3e5f5; color: #7b1fa2; }
+        .btn-schedule { background: #e3f2fd; color: #1565c0; }
+        .btn-stop { background: #ffebee; color: #c62828; display: none; }
+        .btn-executions { background: #fff; color: #555; border: 1px solid #ccc !important; margin-left: auto; }
+        .btn-executions:hover { background: #f5f5f5; border-color: #999 !important; color: #222; }
+        .btn-executions.active { background: #7b1fa2; color: #fff; border-color: #7b1fa2 !important; }
+        .main-area { display: flex; flex: 1; overflow: hidden; }
+        .main-area iframe { flex: 1; border: none; min-width: 0; }
+        .exec-panel { width: 380px; min-width: 380px; border-left: 1px solid #ddd; background: #fafafa; overflow-y: auto; display: none; flex-direction: column; }
+        .exec-panel.open { display: flex; }
+        .exec-panel-header { padding: 14px 16px; border-bottom: 1px solid #eee; font-size: 15px; font-weight: 600; color: #333; display: flex; align-items: center; justify-content: space-between; }
+        .exec-panel-header button { background: none; border: none; font-size: 18px; cursor: pointer; color: #999; padding: 0 4px; }
+        .exec-panel-header button:hover { color: #333; }
+        .exec-panel-body { padding: 0; flex: 1; overflow-y: auto; }
+        .exec-item { padding: 12px 16px; border-bottom: 1px solid #eee; font-size: 13px; display: flex; flex-direction: column; gap: 6px; }
+        .exec-item:hover { background: #f5f5f5; }
+        .exec-item-row { display: flex; align-items: center; justify-content: space-between; }
+        .exec-item-meta { color: #888; font-size: 12px; }
+        .exec-item-actions { display: flex; gap: 6px; margin-top: 2px; }
+        .exec-item-actions a { font-size: 12px; padding: 2px 10px; border-radius: 4px; text-decoration: none; }
+        .exec-link-view { background: #e3f2fd; color: #1565c0; }
+        .exec-link-track { background: #fff3e0; color: #e65100; }
+        .nb-meta { padding: 12px 20px; background: #fff; border-bottom: 1px solid #eee; display: none; }
+        .nb-meta-title { font-size: 20px; font-weight: 700; color: #222; margin-bottom: 10px; word-break: break-all; }
+        .nb-meta-grid { display: flex; gap: 24px; flex-wrap: wrap; font-size: 13px; color: #555; }
+        .nb-meta-grid .meta-item { display: flex; align-items: center; gap: 5px; }
+        .nb-meta-grid .meta-label { color: #999; font-weight: 500; }
+        .nb-meta-grid .meta-value { color: #333; }
+        .status-badge { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+        .status-succeeded { background: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7; }
+        .status-failed { background: #ffebee; color: #c62828; border: 1px solid #ef9a9a; }
+        .status-pending { background: #fff3e0; color: #e65100; border: 1px solid #ffcc80; }
+        .status-running { background: #e3f2fd; color: #1565c0; border: 1px solid #90caf9; }
+        .sched-badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-family: monospace; background: #f3e5f5; color: #7b1fa2; border: 1px solid #ce93d8; }
+        iframe { flex: 1; border: none; min-width: 0; }
+        .loading { padding: 40px; text-align: center; color: #999; font-style: italic; }
+        dialog { border: 1px solid #ddd; border-radius: 8px; padding: 24px; max-width: 400px; }
+        dialog::backdrop { background: rgba(0,0,0,0.3); }
+        dialog label { display: block; margin-top: 14px; font-weight: 600; font-size: 14px; }
+        dialog select { width: 100%; padding: 8px; margin-top: 6px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; }
+        dialog button { margin-top: 18px; padding: 8px 20px; border: none; border-radius: 4px; font-size: 14px; cursor: pointer; }
+        dialog .btn-submit { background: #7b1fa2; color: #fff; }
+        dialog .btn-cancel { background: #eee; color: #333; margin-left: 8px; }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+    <div class="toolbar">
+        <a class="btn-back" href="index.html">Home</a>
+        <span class="hidden" id="execOutputLabel" style="font-size:14px;font-weight:600;color:#555;">Execution Output</span>
+        <button class="btn-exec hidden" id="runBtn">Run</button>
+        <button class="btn-schedule hidden" id="schedBtn">Schedule</button>
+        <button class="btn-schedule hidden" id="unschedBtn" style="background:#ffebee;color:#c62828;">Unschedule</button>
+        <a class="btn-stop" id="stopBtn" href="#">Stop Session</a>
+        <button class="btn-executions hidden" id="execBtn">Executions</button>
+    </div>
+    <div class="nb-meta" id="nbMeta">
+        <div class="nb-meta-title" id="nbMetaTitle"></div>
+        <div class="nb-meta-grid" id="nbMetaGrid"></div>
+    </div>
+    <div class="main-area" id="mainArea">
+        <div id="content"><p class="loading">Loading notebook...</p></div>
+        <div class="exec-panel" id="execPanel">
+            <div class="exec-panel-header">
+                <span>Executions</span>
+                <button id="execPanelClose">&times;</button>
+            </div>
+            <div class="exec-panel-body" id="execPanelBody">
+                <p style="padding:16px;color:#999;font-style:italic;">Loading...</p>
+            </div>
+        </div>
+    </div>
+
+    <dialog id="runDialog">
+        <h3>Run Notebook</h3>
+        <label for="dialogRole">IAM Role</label>
+        <select id="dialogRole"></select>
+        <label for="dialogImage">Docker Image</label>
+        <select id="dialogImage"></select>
+        <label for="dialogVcpu">vCPU</label>
+        <select id="dialogVcpu"></select>
+        <label for="dialogMemory">Memory</label>
+        <select id="dialogMemory"></select>
+        <div style="margin-top: 18px;">
+            <button class="btn-submit" id="dialogSubmit">Run</button>
+            <button class="btn-cancel" id="dialogCancel">Cancel</button>
+        </div>
+    </dialog>
+
+    <dialog id="scheduleDialog">
+        <h3>Schedule Notebook</h3>
+        <label for="schedCron">Cron Expression</label>
+        <input type="text" id="schedCron" style="width:100%;padding:8px;margin-top:6px;border:1px solid #ccc;border-radius:4px;font-size:14px;box-sizing:border-box;">
+        <label for="schedRole">IAM Role</label>
+        <select id="schedRole"></select>
+        <label for="schedImage">Docker Image</label>
+        <select id="schedImage"></select>
+        <label for="schedVcpu">vCPU</label>
+        <select id="schedVcpu"></select>
+        <label for="schedMemory">Memory</label>
+        <select id="schedMemory"></select>
+        <div style="margin-top: 18px;">
+            <button class="btn-submit" id="schedSubmit">Schedule</button>
+            <button class="btn-cancel" id="schedCancel">Cancel</button>
+        </div>
+    </dialog>
+
+    <script src="config.js"></script>
+    <script src="auth.js"></script>
+    <script>
+        (async function () {
+            await window._authReady;
+
+            const params = new URLSearchParams(window.location.search);
+            const id = params.get("id");
+            const s3Key = params.get("s3_key");
+            const executionId = params.get("execution_id");
+            const serviceName = params.get("service_name");
+
+            if (serviceName) {
+                const stopBtn = document.getElementById("stopBtn");
+                stopBtn.style.display = "inline-block";
+                stopBtn.addEventListener("click", async (e) => {
+                    e.preventDefault();
+                    await fetch(CONFIG.apiBaseUrl + "/api/sessions/" + encodeURIComponent(serviceName), { method: "DELETE" });
+                    window.location.href = "index.html";
+                });
+            }
+
+            // Fargate vCPU/memory helpers
+            const VCPU_OPTIONS = [256, 512, 1024, 2048, 4096];
+            const MEMORY_BY_VCPU = {
+                256: [512, 1024, 2048],
+                512: [1024, 2048, 3072, 4096],
+                1024: [2048, 3072, 4096, 5120, 6144, 7168, 8192],
+                2048: [4096, 5120, 6144, 7168, 8192, 9216, 10240, 11264, 12288, 13312, 14336, 15360, 16384],
+                4096: [8192, 9216, 10240, 11264, 12288, 13312, 14336, 15360, 16384, 17408, 18432, 19456, 20480, 21504, 22528, 23552, 24576, 25600, 26624, 27648, 28672, 29696, 30720],
+            };
+            function vcpuLabel(v) { return v < 1024 ? (v / 1024).toFixed(2).replace(/0$/, "") + " vCPU" : (v / 1024) + " vCPU"; }
+            function memLabel(m) { return m >= 1024 ? (m / 1024) + " GB" : m + " MB"; }
+            function populateVcpuSelect(sel, memSel) {
+                sel.innerHTML = "";
+                for (const v of VCPU_OPTIONS) {
+                    if (v > CONFIG.taskMaxVcpu) break;
+                    const opt = document.createElement("option");
+                    opt.value = v;
+                    opt.textContent = vcpuLabel(v);
+                    if (v === CONFIG.taskDefaultVcpu) opt.selected = true;
+                    sel.appendChild(opt);
+                }
+                populateMemorySelect(sel, memSel);
+            }
+            function populateMemorySelect(vcpuSel, memSel) {
+                const curVcpu = parseInt(vcpuSel.value);
+                const allowed = (MEMORY_BY_VCPU[curVcpu] || []).filter(m => m <= CONFIG.taskMaxMemory);
+                memSel.innerHTML = "";
+                for (const m of allowed) {
+                    const opt = document.createElement("option");
+                    opt.value = m;
+                    opt.textContent = memLabel(m);
+                    if (m === CONFIG.taskDefaultMemory) opt.selected = true;
+                    memSel.appendChild(opt);
+                }
+            }
+            function populateRoleSelect(sel) {
+                for (const role of CONFIG.availableRoles) {
+                    const opt = document.createElement("option");
+                    opt.value = role;
+                    opt.textContent = role.split("/").pop();
+                    sel.appendChild(opt);
+                }
+            }
+            function populateImageSelect(sel) {
+                for (const img of CONFIG.availableImages) {
+                    const opt = document.createElement("option");
+                    opt.value = img;
+                    opt.textContent = img.split("/").pop();
+                    sel.appendChild(opt);
+                }
+            }
+
+            // Show Run & Schedule buttons only when viewing a notebook by id (not an execution output)
+            if (id) {
+                document.getElementById("runBtn").classList.remove("hidden");
+                document.getElementById("schedBtn").classList.remove("hidden");
+
+                // Run dialog
+                const dialog = document.getElementById("runDialog");
+                const dialogRole = document.getElementById("dialogRole");
+                const dialogImage = document.getElementById("dialogImage");
+                const dialogVcpu = document.getElementById("dialogVcpu");
+                const dialogMemory = document.getElementById("dialogMemory");
+
+                populateRoleSelect(dialogRole);
+                populateImageSelect(dialogImage);
+                populateVcpuSelect(dialogVcpu, dialogMemory);
+                dialogVcpu.addEventListener("change", () => populateMemorySelect(dialogVcpu, dialogMemory));
+
+                document.getElementById("runBtn").addEventListener("click", () => dialog.showModal());
+                document.getElementById("dialogCancel").addEventListener("click", () => dialog.close());
+
+                document.getElementById("dialogSubmit").addEventListener("click", async () => {
+                    const btn = document.getElementById("dialogSubmit");
+                    btn.disabled = true;
+                    btn.textContent = "Starting...";
+                    const execRes = await fetch(CONFIG.apiBaseUrl + "/api/executions", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            notebook_id: id,
+                            iam_role_arn: dialogRole.value,
+                            ecr_image_uri: dialogImage.value,
+                            vcpu: parseInt(dialogVcpu.value),
+                            memory: parseInt(dialogMemory.value),
+                        }),
+                    });
+                    if (execRes.ok) {
+                        const data = await execRes.json();
+                        dialog.close();
+                        window.location.href = "execution_status.html?execution_id=" + encodeURIComponent(data.execution_id);
+                    } else {
+                        const err = await execRes.json().catch(() => ({}));
+                        alert("Run failed: " + (err.error || execRes.status));
+                        btn.disabled = false;
+                        btn.textContent = "Run";
+                    }
+                });
+
+                // Schedule dialog
+                const schedDialog = document.getElementById("scheduleDialog");
+                const schedRole = document.getElementById("schedRole");
+                const schedImage = document.getElementById("schedImage");
+                const schedVcpu = document.getElementById("schedVcpu");
+                const schedMemory = document.getElementById("schedMemory");
+                const schedCron = document.getElementById("schedCron");
+
+                populateRoleSelect(schedRole);
+                populateImageSelect(schedImage);
+                populateVcpuSelect(schedVcpu, schedMemory);
+                schedVcpu.addEventListener("change", () => populateMemorySelect(schedVcpu, schedMemory));
+
+                document.getElementById("schedBtn").addEventListener("click", () => schedDialog.showModal());
+                document.getElementById("schedCancel").addEventListener("click", () => schedDialog.close());
+
+                document.getElementById("schedSubmit").addEventListener("click", async () => {
+                    const btn = document.getElementById("schedSubmit");
+                    btn.disabled = true;
+                    btn.textContent = "Scheduling...";
+                    const schedRes = await fetch(CONFIG.apiBaseUrl + "/api/notebooks/" + encodeURIComponent(id) + "/schedule", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            cron_expression: schedCron.value,
+                            iam_role_arn: schedRole.value,
+                            ecr_image_uri: schedImage.value,
+                            vcpu: parseInt(schedVcpu.value),
+                            memory: parseInt(schedMemory.value),
+                        }),
+                    });
+                    if (schedRes.ok) {
+                        schedDialog.close();
+                        alert("Schedule saved!");
+                    } else {
+                        const err = await schedRes.json().catch(() => ({}));
+                        alert("Schedule failed: " + (err.error || schedRes.status));
+                        btn.disabled = false;
+                        btn.textContent = "Schedule";
+                    }
+                });
+            }
+
+            // Fetch and display execution metadata
+            if (executionId) {
+                const execRes = await fetch(CONFIG.apiBaseUrl + "/api/executions/" + encodeURIComponent(executionId) + "/status");
+                if (execRes.ok) {
+                    const ex = await execRes.json();
+                    const meta = document.getElementById("nbMeta");
+                    document.getElementById("execOutputLabel").classList.remove("hidden");
+                    const titleEl = document.getElementById("nbMetaTitle");
+                    if (ex.notebook_id) {
+                        titleEl.innerHTML = '<a href="notebook.html?id=' + encodeURIComponent(ex.notebook_id) + '" style="color:#7b1fa2;text-decoration:none;">' + (ex.notebook_name || "Notebook") + '</a>';
+                    } else {
+                        titleEl.textContent = ex.notebook_name || "Notebook";
+                    }
+
+                    function durationStr(startedAt, finishedAt) {
+                        if (!startedAt) return "-";
+                        const start = new Date(startedAt).getTime();
+                        const end = finishedAt ? new Date(finishedAt).getTime() : Date.now();
+                        const s = Math.floor((end - start) / 1000);
+                        if (s < 60) return s + "s";
+                        if (s < 3600) return Math.floor(s / 60) + "min " + (s % 60) + "s";
+                        const h = Math.floor(s / 3600);
+                        const m = Math.floor((s % 3600) / 60);
+                        return h + "h " + (m ? m + "min" : "");
+                    }
+
+                    const stLower = (ex.status || "").toLowerCase();
+                    let items = '';
+                    items += '<div class="meta-item"><span class="meta-label">Status</span> <span class="status-badge status-' + stLower + '">' + (ex.status || "-") + '</span></div>';
+                    if (ex.owner_email) items += '<div class="meta-item"><span class="meta-label">Owner</span> <span class="meta-value">' + ex.owner_email + '</span></div>';
+                    if (ex.trigger_type) items += '<div class="meta-item"><span class="meta-label">Trigger</span> <span class="meta-value">' + ex.trigger_type + '</span></div>';
+                    if (ex.started_at) items += '<div class="meta-item"><span class="meta-label">Started</span> <span class="meta-value">' + new Date(ex.started_at).toLocaleString() + '</span></div>';
+                    items += '<div class="meta-item"><span class="meta-label">Duration</span> <span class="meta-value">' + durationStr(ex.started_at, ex.finished_at) + '</span></div>';
+
+                    document.getElementById("nbMetaGrid").innerHTML = items;
+                    meta.style.display = "block";
+                }
+            }
+
+            // Fetch and display notebook metadata
+            if (id) {
+                const nbListRes = await fetch(CONFIG.apiBaseUrl + "/api/notebooks");
+                if (nbListRes.ok) {
+                    const allNbs = await nbListRes.json();
+                    const nb = Array.isArray(allNbs) ? allNbs.find(n => n.id === id) : null;
+                    if (nb) {
+                        const meta = document.getElementById("nbMeta");
+                        document.getElementById("nbMetaTitle").textContent = nb.name || id;
+
+                        let items = '';
+                        items += '<div class="meta-item"><span class="meta-label">Owner</span> <span class="meta-value">' + (nb.owner || "-") + '</span></div>';
+                        items += '<div class="meta-item"><span class="meta-label">Uploaded</span> <span class="meta-value">' + (nb.uploaded_at ? new Date(nb.uploaded_at).toLocaleString() : "-") + '</span></div>';
+                        if (nb.last_execution_date) {
+                            items += '<div class="meta-item"><span class="meta-label">Last execution</span> <span class="meta-value">' + new Date(nb.last_execution_date).toLocaleString() + '</span></div>';
+                        }
+                        if (nb.last_execution_status) {
+                            const st = nb.last_execution_status.toLowerCase();
+                            items += '<div class="meta-item"><span class="meta-label">Last Status</span> <span class="status-badge status-' + st + '">' + nb.last_execution_status + '</span></div>';
+                        }
+                        if (nb.schedule_cron) {
+                            items += '<div class="meta-item"><span class="meta-label">Schedule</span> <span class="sched-badge">' + nb.schedule_cron + '</span></div>';
+                            const unschedBtn = document.getElementById("unschedBtn");
+                            unschedBtn.classList.remove("hidden");
+                            unschedBtn.addEventListener("click", async () => {
+                                if (!confirm("Remove schedule for this notebook?")) return;
+                                unschedBtn.disabled = true;
+                                unschedBtn.textContent = "Removing...";
+                                const res = await fetch(CONFIG.apiBaseUrl + "/api/notebooks/" + encodeURIComponent(id) + "/schedule", { method: "DELETE" });
+                                if (res.ok) {
+                                    window.location.reload();
+                                } else {
+                                    const err = await res.json().catch(() => ({}));
+                                    alert("Unschedule failed: " + (err.error || res.status));
+                                    unschedBtn.disabled = false;
+                                    unschedBtn.textContent = "Unschedule";
+                                }
+                            });
+                        }
+                        document.getElementById("nbMetaGrid").innerHTML = items;
+                        meta.style.display = "block";
+                    }
+                }
+            }
+
+            // Compute main area height
+            function updateMainAreaHeight() {
+                const toolbarH = document.querySelector(".toolbar").offsetHeight;
+                const metaEl = document.getElementById("nbMeta");
+                const metaH = metaEl && metaEl.style.display !== "none" ? metaEl.offsetHeight : 0;
+                document.getElementById("mainArea").style.height = "calc(100vh - " + (toolbarH + metaH) + "px)";
+            }
+
+            // Render notebook
+            var renderUrl;
+            if (executionId) {
+                renderUrl = CONFIG.apiBaseUrl + "/api/notebooks/render?execution_id=" + encodeURIComponent(executionId);
+            } else if (id) {
+                renderUrl = CONFIG.apiBaseUrl + "/api/notebooks/render?id=" + encodeURIComponent(id);
+            }
+
+            const res = await fetch(renderUrl);
+            const html = await res.text();
+            const content = document.getElementById("content");
+            const iframe = document.createElement("iframe");
+            iframe.srcdoc = html;
+            content.replaceWith(iframe);
+            updateMainAreaHeight();
+
+            // Executions panel — fetch in background on load
+            if (id) {
+                const execBtn = document.getElementById("execBtn");
+                const execPanel = document.getElementById("execPanel");
+                const execPanelBody = document.getElementById("execPanelBody");
+                execBtn.classList.remove("hidden");
+
+                let executionsHtml = '<p style="padding:16px;color:#999;font-style:italic;">Loading...</p>';
+
+                // Fetch executions in background
+                fetch(CONFIG.apiBaseUrl + "/api/notebooks/" + encodeURIComponent(id) + "/executions")
+                    .then(r => r.ok ? r.json() : Promise.reject(r.status))
+                    .then(executions => {
+                        if (!Array.isArray(executions) || executions.length === 0) {
+                            executionsHtml = '<p style="padding:16px;color:#999;">No executions yet.</p>';
+                        } else {
+                            let h = '';
+                            for (const ex of executions) {
+                                const stLower = ex.status.toLowerCase();
+                                const started = ex.started_at ? new Date(ex.started_at).toLocaleString() : "";
+                                let duration = "";
+                                if (ex.started_at && ex.finished_at) {
+                                    const ms = new Date(ex.finished_at) - new Date(ex.started_at);
+                                    const s = Math.floor(ms / 1000);
+                                    if (s < 60) duration = s + "s";
+                                    else if (s < 3600) duration = Math.floor(s / 60) + "min " + (s % 60) + "s";
+                                    else { const hh = Math.floor(s / 3600); const mm = Math.floor((s % 3600) / 60); duration = hh + "h " + (mm ? mm + "min" : ""); }
+                                } else if (ex.started_at && (ex.status === "RUNNING" || ex.status === "PENDING")) {
+                                    duration = "running...";
+                                }
+                                h += '<div class="exec-item">';
+                                h += '<div class="exec-item-row"><span class="status-badge status-' + stLower + '">' + ex.status + '</span><span class="exec-item-meta">' + (ex.trigger_type || "manual") + '</span></div>';
+                                if (started) h += '<div class="exec-item-meta">' + started + (duration ? ' &middot; ' + duration : '') + '</div>';
+                                if (ex.owner_email) h += '<div class="exec-item-meta">' + ex.owner_email + '</div>';
+                                h += '<div class="exec-item-actions">';
+                                if (ex.status === "SUCCEEDED" && ex.output_s3_key) {
+                                    h += '<a class="exec-link-view" href="notebook.html?execution_id=' + encodeURIComponent(ex.id) + '">View Output</a>';
+                                } else if (ex.status === "PENDING" || ex.status === "RUNNING") {
+                                    h += '<a class="exec-link-track" href="execution_status.html?execution_id=' + encodeURIComponent(ex.id) + '">Track</a>';
+                                }
+                                h += '</div></div>';
+                            }
+                            executionsHtml = h;
+                        }
+                        execPanelBody.innerHTML = executionsHtml;
+                    })
+                    .catch(() => {
+                        executionsHtml = '<p style="padding:16px;color:#c62828;">Failed to load executions.</p>';
+                        execPanelBody.innerHTML = executionsHtml;
+                    });
+
+                // Toggle panel
+                execBtn.addEventListener("click", () => {
+                    const isOpen = execPanel.classList.toggle("open");
+                    execBtn.classList.toggle("active", isOpen);
+                });
+                document.getElementById("execPanelClose").addEventListener("click", () => {
+                    execPanel.classList.remove("open");
+                    execBtn.classList.remove("active");
+                });
+            }
+        })();
+    </script>
+</body>
+</html>

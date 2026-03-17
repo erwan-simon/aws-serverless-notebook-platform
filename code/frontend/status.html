@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Session Status</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; max-width: 500px; margin: 80px auto; padding: 0 20px; color: #333; text-align: center; }
+        .spinner { width: 40px; height: 40px; border: 4px solid #eee; border-top: 4px solid #2e7d32; border-radius: 50%; animation: spin 1s linear infinite; margin: 30px auto; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .status { font-size: 18px; margin: 20px 0; }
+        a.btn { display: inline-block; padding: 10px 24px; border-radius: 4px; text-decoration: none; font-size: 15px; margin: 8px; }
+        .btn-open { background: #2e7d32; color: #fff; }
+        .btn-stop { background: #c62828; color: #fff; }
+        .btn-back { background: #eee; color: #333; }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+    <h1>Session</h1>
+    <div id="starting">
+        <div class="spinner"></div>
+        <p class="status">Starting Jupyter session...</p>
+    </div>
+    <div id="running" class="hidden">
+        <p class="status">Jupyter is ready!</p>
+        <p id="redirect-msg"></p>
+        <a class="btn btn-open" id="openBtn" href="#" target="_blank">Open Jupyter</a>
+    </div>
+    <div style="margin-top: 30px;">
+        <a class="btn btn-stop" id="stopBtn" href="#">Stop Session</a>
+        <a class="btn btn-back" href="index.html">Back to notebooks</a>
+    </div>
+
+    <script src="config.js"></script>
+    <script src="auth.js"></script>
+    <script>
+        (async function () {
+            await window._authReady;
+
+            const params = new URLSearchParams(window.location.search);
+            const serviceName = params.get("service_name");
+            const jupyterToken = params.get("jupyter_token");
+
+            let polling = null;
+
+            async function checkStatus() {
+                const res = await fetch(CONFIG.apiBaseUrl + "/api/sessions/" + encodeURIComponent(serviceName) + "/status");
+                const data = await res.json();
+
+                if (data.status === "running") {
+                    clearInterval(polling);
+                    const jupyterUrl = data.url + "?token=" + encodeURIComponent(jupyterToken);
+                    document.getElementById("starting").classList.add("hidden");
+                    document.getElementById("running").classList.remove("hidden");
+                    document.getElementById("openBtn").href = jupyterUrl;
+                    document.getElementById("redirect-msg").textContent = "Redirecting in 3 seconds...";
+                    setTimeout(() => { window.open(jupyterUrl, "_blank"); }, 3000);
+                }
+            }
+
+            polling = setInterval(checkStatus, 5000);
+            checkStatus();
+
+            document.getElementById("stopBtn").addEventListener("click", async (e) => {
+                e.preventDefault();
+                clearInterval(polling);
+                await fetch(CONFIG.apiBaseUrl + "/api/sessions/" + encodeURIComponent(serviceName), { method: "DELETE" });
+                window.location.href = "index.html";
+            });
+        })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,69 @@
+import json
+import os
+
+import boto3
+
+HEADERS = {
+    "Content-Type": "application/json",
+    "Access-Control-Allow-Origin": "*",
+}
+
+# CloudFront origin verify secret — read once at cold start from SSM.
+# See: https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/restrict-access-to-load-balancer.html
+_ssm = boto3.client("ssm")
+_origin_secret = _ssm.get_parameter(
+    Name=os.environ["ORIGIN_VERIFY_SECRET_SSM_NAME"], WithDecryption=True
+)["Parameter"]["Value"]
+assert _origin_secret, "Failed to retrieve origin verify secret from SSM"
+
+
+def handler(event, context):
+    if event.get("headers", {}).get("x-origin-verify") != _origin_secret:
+        return {"statusCode": 403, "headers": HEADERS, "body": json.dumps({"error": "Forbidden"})}
+
+    dynamodb = boto3.resource("dynamodb")
+    notebooks_table = dynamodb.Table(os.environ["NOTEBOOKS_TABLE"])
+    executions_table = dynamodb.Table(os.environ["EXECUTIONS_TABLE"])
+
+    notebooks = []
+    response = notebooks_table.scan()
+    notebooks.extend(response.get("Items", []))
+    while "LastEvaluatedKey" in response:
+        response = notebooks_table.scan(ExclusiveStartKey=response["LastEvaluatedKey"])
+        notebooks.extend(response.get("Items", []))
+
+    # Scan all executions and group latest by notebook_id
+    executions = []
+    response = executions_table.scan()
+    executions.extend(response.get("Items", []))
+    while "LastEvaluatedKey" in response:
+        response = executions_table.scan(ExclusiveStartKey=response["LastEvaluatedKey"])
+        executions.extend(response.get("Items", []))
+
+    latest_exec = {}
+    for ex in executions:
+        nb_id = ex.get("notebook_id", "")
+        started = ex.get("started_at", "")
+        if nb_id not in latest_exec or started > latest_exec[nb_id].get("started_at", ""):
+            latest_exec[nb_id] = ex
+
+    notebooks.sort(key=lambda n: n.get("uploaded_at", ""), reverse=True)
+
+    result = []
+    for nb in notebooks:
+        entry = {
+            "id": nb["id"],
+            "name": nb["name"],
+            "uploaded_at": nb.get("uploaded_at", ""),
+            "owner": nb.get("owner_email", ""),
+            "schedule_cron": nb.get("schedule_cron", ""),
+            "last_execution_date": "",
+            "last_execution_status": "",
+        }
+        ex = latest_exec.get(nb["id"])
+        if ex:
+            entry["last_execution_date"] = ex.get("started_at", "")
+            entry["last_execution_status"] = ex.get("status", "")
+        result.append(entry)
+
+    return {"statusCode": 200, "headers": HEADERS, "body": json.dumps(result)}

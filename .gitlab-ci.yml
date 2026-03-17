@@ -1,0 +1,21 @@
+variables:
+  PROJECT_NAME: poc
+  DOMAIN_NAME: jupyter_sandbox
+  STAGE_NAME: $CI_COMMIT_REF_SLUG
+  TARGET_REPO_NAME: "aws-serverless-notebook-platform"
+
+
+include:
+  - project: 'erwan.simon/devops-platform-ci-templates'
+    ref: 'v2.0.3'
+    file:
+      - 'base.yml'
+      - 'terraform.yml'
+      - 'mirror_to_github.yml'
+
+stages:
+  - init
+  - format
+  - security
+  - deploy
+  - mirror_to_github

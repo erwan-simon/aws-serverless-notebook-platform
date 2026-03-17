@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Notebook Portal</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; max-width: 900px; margin: 40px auto; padding: 0 20px; color: #333; }
+        h1 { border-bottom: 2px solid #eee; padding-bottom: 10px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid #eee; }
+        th { background: #f7f7f7; font-weight: 600; }
+        tr:hover { background: #f9f9f9; }
+        .nb-name-link { display: inline-block; color: #7b1fa2; text-decoration: none; font-weight: 600; font-size: 15px; padding: 5px 14px; border-radius: 6px; border: 1px solid #e0d4f5; background: #faf5ff; transition: all 0.15s; }
+        .nb-name-link:hover { background: #f3e5f5; border-color: #ce93d8; color: #6a1b9a; }
+        a.btn { display: inline-block; padding: 5px 14px; border-radius: 4px; text-decoration: none; font-size: 13px; }
+        .btn-run { background: #e8f5e9; color: #2e7d32; }
+        .loading { color: #999; font-style: italic; }
+        .actions-bar { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; }
+        input[type="file"] { display: none; }
+        .btn-upload { background: #fff; color: #444; border: 1px solid #ccc; cursor: pointer; transition: all 0.15s; padding: 7px 18px; font-weight: 500; letter-spacing: 0.01em; }
+        .btn-upload:hover { background: #f5f5f5; border-color: #999; color: #222; }
+        .upload-status { font-size: 13px; color: #666; }
+        .session-card { border: 1px solid #e0e0e0; border-radius: 8px; padding: 16px 20px; margin-bottom: 20px; background: #fafafa; }
+        .session-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+        .session-card-header h2 { margin: 0; font-size: 16px; font-weight: 600; }
+        .session-card-body { display: none; }
+        .session-card-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 20px; font-size: 13px; margin-bottom: 12px; }
+        .session-card-grid dt { color: #888; }
+        .session-card-grid dd { margin: 0; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .session-card-actions { display: flex; gap: 8px; align-items: center; }
+        .btn-stop { background: #ffebee; color: #c62828; cursor: pointer; border: none; font-size: 13px; padding: 5px 14px; border-radius: 4px; }
+        .btn-open { background: #e8f5e9; color: #2e7d32; }
+        .session-uptime { font-size: 12px; color: #888; }
+        .status-badge { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; }
+        .status-succeeded { background: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7; }
+        .status-failed { background: #ffebee; color: #c62828; border: 1px solid #ef9a9a; }
+        .status-pending { background: #fff3e0; color: #e65100; border: 1px solid #ffcc80; }
+        .status-running { background: #e3f2fd; color: #1565c0; border: 1px solid #90caf9; }
+        .status-stopped { background: #f5f5f5; color: #999; border: 1px solid #e0e0e0; }
+        .cron-cell { font-family: monospace; font-size: 12px; color: #555; }
+        .filters-bar { display: flex; gap: 10px; align-items: center; margin-top: 10px; flex-wrap: wrap; }
+        .filters-bar select { padding: 6px 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; }
+        .breadcrumb { display: flex; gap: 4px; align-items: center; margin-bottom: 12px; font-size: 14px; flex-wrap: wrap; }
+        .breadcrumb a { color: #7b1fa2; text-decoration: none; }
+        .breadcrumb a:hover { text-decoration: underline; }
+        .breadcrumb .sep { color: #999; }
+        .folder-row { cursor: pointer; }
+        .folder-row:hover { background: #f3e5f9; }
+        .folder-icon { margin-right: 6px; }
+        .menu-cell { position: relative; }
+        .menu-toggle { background: none; border: none; cursor: pointer; font-size: 20px; padding: 4px 8px; border-radius: 4px; color: #555; }
+        .menu-toggle:hover { background: #f0f0f0; }
+        .menu-dropdown { display: none; position: absolute; right: 0; top: 100%; background: #fff; border: 1px solid #ddd; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); min-width: 160px; z-index: 10; padding: 4px 0; }
+        .menu-dropdown.open { display: block; }
+        .menu-dropdown a, .menu-dropdown button { display: block; width: 100%; text-align: left; padding: 8px 14px; border: none; background: none; font-size: 13px; cursor: pointer; color: #333; text-decoration: none; box-sizing: border-box; }
+        .menu-dropdown a:hover, .menu-dropdown button:hover { background: #f5f5f5; }
+        .menu-dropdown .menu-delete { color: #c62828; }
+        .menu-dropdown .menu-unsched { color: #880e4f; }
+        dialog { border: 1px solid #ddd; border-radius: 8px; padding: 24px; max-width: 400px; }
+        dialog::backdrop { background: rgba(0,0,0,0.3); }
+        dialog label { display: block; margin-top: 14px; font-weight: 600; font-size: 14px; }
+        dialog select { width: 100%; padding: 8px; margin-top: 6px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; }
+        dialog button { margin-top: 18px; padding: 8px 20px; border: none; border-radius: 4px; font-size: 14px; cursor: pointer; }
+        dialog .btn-submit { background: #7b1fa2; color: #fff; }
+        dialog .btn-cancel { background: #eee; color: #333; margin-left: 8px; }
+        dialog input[type="text"] { width: 100%; padding: 8px; margin-top: 6px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; box-sizing: border-box; }
+    </style>
+</head>
+<body>
+    <h1>Notebooks</h1>
+    <div class="session-card" id="sessionCard">
+        <div class="session-card-header">
+            <h2>Session</h2>
+            <span id="sessionBadge" class="status-badge status-stopped" style="display:none;"></span>
+        </div>
+        <div id="sessionStopped">
+            <a class="btn btn-run" href="run.html">Launch Session</a>
+        </div>
+        <div class="session-card-body" id="sessionActive">
+            <dl class="session-card-grid">
+                <dt>Status</dt><dd><span id="sessionBadgeInline" class="status-badge"></span></dd>
+                <dt>Uptime</dt><dd><span id="sessionUptime" class="session-uptime"></span> <span id="sessionTimeout" style="color:#bbb; font-size:11px;"></span></dd>
+                <dt>Image</dt><dd id="sessionImage" title=""></dd>
+                <dt>IAM Role</dt><dd id="sessionRole" title=""></dd>
+                <dt>vCPU</dt><dd id="sessionVcpu"></dd>
+                <dt>Memory</dt><dd id="sessionMemory"></dd>
+            </dl>
+            <div class="session-card-actions">
+                <a class="btn btn-open" id="sessionBtn" href="#">Open Session</a>
+                <button class="btn-stop" id="sessionStop">Stop session</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="content"><p class="loading">Loading notebooks...</p></div>
+
+    <dialog id="uploadDialog">
+        <h3>Upload Notebook</h3>
+        <label for="uploadName">Name</label>
+        <input type="text" id="uploadName">
+        <div style="margin-top: 18px;">
+            <button class="btn-submit" id="uploadSubmit">Upload</button>
+            <button class="btn-cancel" id="uploadCancel">Cancel</button>
+        </div>
+    </dialog>
+
+    <dialog id="runDialog">
+        <h3>Run Notebook</h3>
+        <label for="dialogRole">IAM Role</label>
+        <select id="dialogRole"></select>
+        <label for="dialogImage">Docker Image</label>
+        <select id="dialogImage"></select>
+        <label for="dialogVcpu">vCPU</label>
+        <select id="dialogVcpu"></select>
+        <label for="dialogMemory">Memory</label>
+        <select id="dialogMemory"></select>
+        <div style="margin-top: 18px;">
+            <button class="btn-submit" id="dialogSubmit">Run</button>
+            <button class="btn-cancel" id="dialogCancel">Cancel</button>
+        </div>
+    </dialog>
+
+    <dialog id="scheduleDialog">
+        <h3>Schedule Notebook</h3>
+        <label for="schedCron">Cron Expression</label>
+        <input type="text" id="schedCron">
+        <label for="schedRole">IAM Role</label>
+        <select id="schedRole"></select>
+        <label for="schedImage">Docker Image</label>
+        <select id="schedImage"></select>
+        <label for="schedVcpu">vCPU</label>
+        <select id="schedVcpu"></select>
+        <label for="schedMemory">Memory</label>
+        <select id="schedMemory"></select>
+        <div style="margin-top: 18px;">
+            <button class="btn-submit" id="schedSubmit">Schedule</button>
+            <button class="btn-cancel" id="schedCancel">Cancel</button>
+        </div>
+    </dialog>
+    <script src="config.js"></script>
+    <script src="auth.js"></script>
+    <script>
+        (async function () {
+            await window._authReady;
+
+            // Session card
+            function vcpuLabel(v) { v = parseInt(v); return v < 1024 ? (v / 1024).toFixed(2).replace(/0$/, "") + " vCPU" : (v / 1024) + " vCPU"; }
+            function memLabel(m) { m = parseInt(m); return m >= 1024 ? (m / 1024) + " GB" : m + " MB"; }
+            function uptimeStr(iso) {
+                const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+                if (diff < 60) return diff + "s";
+                if (diff < 3600) return Math.floor(diff / 60) + "min";
+                const h = Math.floor(diff / 3600);
+                const m = Math.floor((diff % 3600) / 60);
+                return h + "h " + (m ? m + "min" : "");
+            }
+
+            const sessionBtn = document.getElementById("sessionBtn");
+            const sessionStop = document.getElementById("sessionStop");
+            const sessionStopped = document.getElementById("sessionStopped");
+            const sessionActive = document.getElementById("sessionActive");
+            let sessionServiceName = null;
+            let uptimeInterval = null;
+
+            function showSessionCard(session) {
+                sessionStopped.style.display = "none";
+                sessionActive.style.display = "block";
+
+                const badge = document.getElementById("sessionBadgeInline");
+                badge.textContent = session.status.charAt(0).toUpperCase() + session.status.slice(1);
+                badge.className = "status-badge status-" + session.status;
+
+                document.getElementById("sessionImage").textContent = (session.image || "").split("/").pop();
+                document.getElementById("sessionImage").title = session.image || "";
+                document.getElementById("sessionRole").textContent = (session.iam_role || "").split("/").pop();
+                document.getElementById("sessionRole").title = session.iam_role || "";
+                document.getElementById("sessionVcpu").textContent = session.vcpu ? vcpuLabel(session.vcpu) : "-";
+                document.getElementById("sessionMemory").textContent = session.memory ? memLabel(session.memory) : "-";
+
+                document.getElementById("sessionTimeout").textContent = "(timeout in case of inactivity: " + CONFIG.sessionIdleTimeoutMinutes + " minutes)";
+                if (session.started_at) {
+                    document.getElementById("sessionUptime").textContent = uptimeStr(session.started_at);
+                    clearInterval(uptimeInterval);
+                    uptimeInterval = setInterval(() => {
+                        document.getElementById("sessionUptime").textContent = uptimeStr(session.started_at);
+                    }, 30000);
+                } else {
+                    document.getElementById("sessionUptime").textContent = "-";
+                }
+
+                if (session.status === "running") {
+                    sessionBtn.href = session.url;
+                    sessionBtn.target = "_blank";
+                    sessionBtn.textContent = "Open Session";
+                } else {
+                    sessionBtn.href = "status.html?service_name=" + encodeURIComponent(session.service_name);
+                    sessionBtn.textContent = "View Session";
+                }
+
+                sessionServiceName = session.service_name;
+            }
+
+            const sessionRes = await fetch(CONFIG.apiBaseUrl + "/api/sessions/me");
+            if (sessionRes.ok) {
+                const session = await sessionRes.json();
+                if (session.status === "running" || session.status === "pending") {
+                    showSessionCard(session);
+                }
+            }
+
+            sessionStop.addEventListener("click", async () => {
+                if (!sessionServiceName) return;
+                if (!confirm("Stop your session?")) return;
+                sessionStop.disabled = true;
+                sessionStop.textContent = "Stopping...";
+                const stopRes = await fetch(CONFIG.apiBaseUrl + "/api/sessions/" + encodeURIComponent(sessionServiceName), { method: "DELETE" });
+                if (stopRes.ok) {
+                    window.location.reload();
+                } else {
+                    alert("Stop failed");
+                    sessionStop.disabled = false;
+                    sessionStop.textContent = "Stop session";
+                }
+            });
+
+            // Current folder from URL
+            const urlParams = new URLSearchParams(window.location.search);
+            const currentPath = urlParams.get("path") || "";
+
+            const res = await fetch(CONFIG.apiBaseUrl + "/api/notebooks");
+            const content = document.getElementById("content");
+
+            if (!res.ok) {
+                const err = await res.text();
+                content.innerHTML = "<p style='color:red'>Error " + res.status + ": " + err + "</p>";
+                return;
+            }
+
+            const notebooks = await res.json();
+
+            if (!Array.isArray(notebooks)) {
+                content.innerHTML = "<p>No notebooks found.</p>";
+                return;
+            }
+
+            // Build breadcrumb
+            function buildBreadcrumb(path) {
+                let html = '<div class="breadcrumb">';
+                if (!path) {
+                    html += '<strong>Root</strong>';
+                } else {
+                    html += '<a href="index.html">Root</a>';
+                    const parts = path.replace(/\/$/, "").split("/");
+                    for (let i = 0; i < parts.length; i++) {
+                        html += '<span class="sep">/</span>';
+                        const subPath = parts.slice(0, i + 1).join("/") + "/";
+                        if (i === parts.length - 1) {
+                            html += "<strong>" + parts[i] + "</strong>";
+                        } else {
+                            html += '<a href="index.html?path=' + encodeURIComponent(subPath) + '">' + parts[i] + "</a>";
+                        }
+                    }
+                }
+                html += "</div>";
+                return html;
+            }
+
+            // Split notebooks into folders and files at current path
+            function getDirectoryContents(allNotebooks, path) {
+                const folders = new Set();
+                const files = [];
+                for (const nb of allNotebooks) {
+                    const name = nb.name || "";
+                    if (!name.startsWith(path)) continue;
+                    const rest = name.slice(path.length);
+                    const slashIdx = rest.indexOf("/");
+                    if (slashIdx !== -1) {
+                        folders.add(rest.slice(0, slashIdx));
+                    } else {
+                        files.push(nb);
+                    }
+                }
+                return { folders: [...folders].sort(), files };
+            }
+
+            const { folders, files } = getDirectoryContents(notebooks, currentPath);
+
+            // Collect unique values for filters (from files in current dir only)
+            const owners = [...new Set(files.map(nb => nb.owner || "").filter(Boolean))].sort();
+            const statuses = [...new Set(files.map(nb => nb.last_execution_status || "").filter(Boolean))].sort();
+
+            let filtersHtml = '<div class="filters-bar">';
+            filtersHtml += '<select id="filterOwner"><option value="">All owners</option>';
+            for (const o of owners) filtersHtml += '<option value="' + o + '">' + o + '</option>';
+            filtersHtml += '</select>';
+            filtersHtml += '<select id="filterStatus"><option value="">All statuses</option>';
+            for (const s of statuses) filtersHtml += '<option value="' + s + '">' + s + '</option>';
+            filtersHtml += '</select>';
+            filtersHtml += '<select id="filterScheduled"><option value="">All</option><option value="yes">Scheduled</option><option value="no">Not scheduled</option></select>';
+            filtersHtml += '<label class="btn btn-upload" id="uploadLabel" style="margin-left:auto;">&#x2795; Add Notebook<input type="file" id="fileInput" accept=".ipynb"></label>';
+            filtersHtml += '<span class="upload-status" id="uploadStatus"></span>';
+            filtersHtml += '</div>';
+
+            function renderTable(folderList, fileList) {
+                let html = "<table><thead><tr><th>Name</th><th>Owner</th><th>Uploaded</th><th>Last Execution</th><th>Last Status</th><th>Schedule</th><th></th></tr></thead><tbody>";
+                for (const folder of folderList) {
+                    const folderPath = currentPath + folder + "/";
+                    html += '<tr class="folder-row" data-path="' + folderPath + '">';
+                    html += '<td colspan="7"><span class="folder-icon">&#x1F4C1;</span>' + folder + '</td>';
+                    html += "</tr>";
+                }
+                for (const nb of fileList) {
+                    const id = encodeURIComponent(nb.id);
+                    const displayName = nb.name.slice(currentPath.length);
+                    const date = new Date(nb.uploaded_at).toLocaleString();
+                    const lastExec = nb.last_execution_date ? new Date(nb.last_execution_date).toLocaleString() : "";
+                    const lastStatus = nb.last_execution_status || "";
+                    html += "<tr>";
+                    html += '<td><a class="nb-name-link" href="notebook.html?id=' + id + '">' + displayName + '</a></td>';
+                    html += "<td>" + (nb.owner || "") + "</td>";
+                    html += "<td>" + date + "</td>";
+                    html += "<td>" + lastExec + "</td>";
+                    html += "<td>" + (lastStatus ? '<span class="status-badge status-' + lastStatus.toLowerCase() + '">' + lastStatus + '</span>' : '') + "</td>";
+                    html += '<td class="cron-cell">' + (nb.schedule_cron || "") + "</td>";
+                    html += '<td class="menu-cell">';
+                    html += '<button class="menu-toggle">&#x22EE;</button>';
+                    html += '<div class="menu-dropdown">';
+                    html += '<a href="notebook.html?id=' + id + '">View</a>';
+                    html += '<button class="btn-exec" data-id="' + id + '">Run</button>';
+                    html += '<button class="btn-schedule" data-id="' + id + '" data-cron="' + (nb.schedule_cron || "").replace(/"/g, "&quot;") + '">Schedule</button>';
+                    if (nb.schedule_cron) {
+                        html += '<button class="menu-unsched btn-unsched" data-id="' + id + '">Unschedule</button>';
+                    }
+                    html += '<a href="executions.html?notebook_id=' + id + '">Executions</a>';
+                    html += '<button class="menu-delete btn-delete" data-id="' + id + '">Delete</button>';
+                    html += "</div></td>";
+                    html += "</tr>";
+                }
+                if (folderList.length === 0 && fileList.length === 0) {
+                    html += '<tr><td colspan="7" style="color:#999;font-style:italic;">Empty folder</td></tr>';
+                }
+                html += "</tbody></table>";
+                return html;
+            }
+
+            function applyFilters() {
+                const ownerVal = document.getElementById("filterOwner").value;
+                const statusVal = document.getElementById("filterStatus").value;
+                const schedVal = document.getElementById("filterScheduled").value;
+                const filtered = files.filter(nb => {
+                    if (ownerVal && (nb.owner || "") !== ownerVal) return false;
+                    if (statusVal && (nb.last_execution_status || "") !== statusVal) return false;
+                    if (schedVal === "yes" && !nb.schedule_cron) return false;
+                    if (schedVal === "no" && nb.schedule_cron) return false;
+                    return true;
+                });
+                document.getElementById("nbTable").innerHTML = renderTable(folders, filtered);
+            }
+
+            content.innerHTML = buildBreadcrumb(currentPath) + filtersHtml + '<div id="nbTable">' + renderTable(folders, files) + '</div>';
+
+            // Upload handlers (elements now in DOM via filtersHtml)
+            let uploadFileData = null;
+            const uploadDialog = document.getElementById("uploadDialog");
+            const uploadName = document.getElementById("uploadName");
+
+            document.getElementById("fileInput").addEventListener("change", (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                if (!file.name.endsWith(".ipynb")) {
+                    document.getElementById("uploadStatus").textContent = "Error: file must be .ipynb";
+                    return;
+                }
+
+                const reader = new FileReader();
+                reader.onload = function () {
+                    uploadFileData = btoa(new Uint8Array(reader.result).reduce((s, b) => s + String.fromCharCode(b), ""));
+                    uploadName.value = currentPath + file.name;
+                    uploadDialog.showModal();
+                };
+                reader.readAsArrayBuffer(file);
+            });
+
+            document.getElementById("uploadCancel").addEventListener("click", () => {
+                uploadDialog.close();
+                document.getElementById("fileInput").value = "";
+            });
+
+            document.getElementById("uploadSubmit").addEventListener("click", async () => {
+                const btn = document.getElementById("uploadSubmit");
+                btn.disabled = true;
+                btn.textContent = "Uploading...";
+                const uploadRes = await fetch(CONFIG.apiBaseUrl + "/api/notebooks", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ filename: uploadName.value, content: uploadFileData }),
+                });
+                if (uploadRes.ok) {
+                    uploadDialog.close();
+                    window.location.reload();
+                } else {
+                    const err = await uploadRes.json().catch(() => ({}));
+                    alert("Upload failed: " + (err.error || uploadRes.status));
+                    btn.disabled = false;
+                    btn.textContent = "Upload";
+                }
+            });
+
+            // Folder click navigation
+            content.addEventListener("click", (e) => {
+                const row = e.target.closest(".folder-row");
+                if (!row) return;
+                window.location.href = "index.html?path=" + encodeURIComponent(row.dataset.path);
+            });
+
+            document.getElementById("filterOwner").addEventListener("change", applyFilters);
+            document.getElementById("filterStatus").addEventListener("change", applyFilters);
+            document.getElementById("filterScheduled").addEventListener("change", applyFilters);
+
+            // Menu toggle
+            content.addEventListener("click", (e) => {
+                const toggle = e.target.closest(".menu-toggle");
+                if (!toggle) return;
+                const dropdown = toggle.nextElementSibling;
+                const wasOpen = dropdown.classList.contains("open");
+                document.querySelectorAll(".menu-dropdown.open").forEach(d => d.classList.remove("open"));
+                if (!wasOpen) dropdown.classList.add("open");
+            });
+            document.addEventListener("click", (e) => {
+                if (!e.target.closest(".menu-cell")) {
+                    document.querySelectorAll(".menu-dropdown.open").forEach(d => d.classList.remove("open"));
+                }
+            });
+
+            // Delete handler
+            content.addEventListener("click", async (e) => {
+                if (!e.target.classList.contains("btn-delete")) return;
+                if (!confirm("Delete this notebook?")) return;
+                const nbId = e.target.dataset.id;
+                e.target.disabled = true;
+                e.target.textContent = "Deleting...";
+                const delRes = await fetch(CONFIG.apiBaseUrl + "/api/notebooks/" + encodeURIComponent(nbId), { method: "DELETE" });
+                if (delRes.ok) {
+                    window.location.reload();
+                } else {
+                    const err = await delRes.json().catch(() => ({}));
+                    alert("Delete failed: " + (err.error || delRes.status));
+                    e.target.disabled = false;
+                    e.target.textContent = "Delete";
+                }
+            });
+
+            // Fargate vCPU/memory helpers
+            const VCPU_OPTIONS = [256, 512, 1024, 2048, 4096];
+            const MEMORY_BY_VCPU = {
+                256: [512, 1024, 2048],
+                512: [1024, 2048, 3072, 4096],
+                1024: [2048, 3072, 4096, 5120, 6144, 7168, 8192],
+                2048: [4096, 5120, 6144, 7168, 8192, 9216, 10240, 11264, 12288, 13312, 14336, 15360, 16384],
+                4096: [8192, 9216, 10240, 11264, 12288, 13312, 14336, 15360, 16384, 17408, 18432, 19456, 20480, 21504, 22528, 23552, 24576, 25600, 26624, 27648, 28672, 29696, 30720],
+            };
+            function vcpuLabel(v) { return v < 1024 ? (v / 1024).toFixed(2).replace(/0$/, "") + " vCPU" : (v / 1024) + " vCPU"; }
+            function memLabel(m) { return m >= 1024 ? (m / 1024) + " GB" : m + " MB"; }
+            function populateVcpuSelect(sel, memSel) {
+                sel.innerHTML = "";
+                for (const v of VCPU_OPTIONS) {
+                    if (v > CONFIG.taskMaxVcpu) break;
+                    const opt = document.createElement("option");
+                    opt.value = v;
+                    opt.textContent = vcpuLabel(v);
+                    if (v === CONFIG.taskDefaultVcpu) opt.selected = true;
+                    sel.appendChild(opt);
+                }
+                populateMemorySelect(sel, memSel);
+            }
+            function populateMemorySelect(vcpuSel, memSel) {
+                const curVcpu = parseInt(vcpuSel.value);
+                const allowed = (MEMORY_BY_VCPU[curVcpu] || []).filter(m => m <= CONFIG.taskMaxMemory);
+                memSel.innerHTML = "";
+                for (const m of allowed) {
+                    const opt = document.createElement("option");
+                    opt.value = m;
+                    opt.textContent = memLabel(m);
+                    if (m === CONFIG.taskDefaultMemory) opt.selected = true;
+                    memSel.appendChild(opt);
+                }
+            }
+
+            // Run dialog
+            const dialog = document.getElementById("runDialog");
+            const dialogRole = document.getElementById("dialogRole");
+            const dialogImage = document.getElementById("dialogImage");
+            const dialogVcpu = document.getElementById("dialogVcpu");
+            const dialogMemory = document.getElementById("dialogMemory");
+            let runNotebookId = null;
+
+            for (const role of CONFIG.availableRoles) {
+                const opt = document.createElement("option");
+                opt.value = role;
+                opt.textContent = role.split("/").pop();
+                dialogRole.appendChild(opt);
+            }
+            for (const img of CONFIG.availableImages) {
+                const opt = document.createElement("option");
+                opt.value = img;
+                opt.textContent = img.split("/").pop();
+                dialogImage.appendChild(opt);
+            }
+            populateVcpuSelect(dialogVcpu, dialogMemory);
+            dialogVcpu.addEventListener("change", () => populateMemorySelect(dialogVcpu, dialogMemory));
+
+            content.addEventListener("click", (e) => {
+                if (!e.target.classList.contains("btn-exec")) return;
+                runNotebookId = e.target.dataset.id;
+                dialog.showModal();
+            });
+
+            document.getElementById("dialogCancel").addEventListener("click", () => dialog.close());
+
+            document.getElementById("dialogSubmit").addEventListener("click", async () => {
+                const btn = document.getElementById("dialogSubmit");
+                btn.disabled = true;
+                btn.textContent = "Starting...";
+                const execRes = await fetch(CONFIG.apiBaseUrl + "/api/executions", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        notebook_id: runNotebookId,
+                        iam_role_arn: dialogRole.value,
+                        ecr_image_uri: dialogImage.value,
+                        vcpu: parseInt(dialogVcpu.value),
+                        memory: parseInt(dialogMemory.value),
+                    }),
+                });
+                if (execRes.ok) {
+                    const data = await execRes.json();
+                    dialog.close();
+                    window.location.href = "execution_status.html?execution_id=" + encodeURIComponent(data.execution_id);
+                } else {
+                    const err = await execRes.json().catch(() => ({}));
+                    alert("Run failed: " + (err.error || execRes.status));
+                    btn.disabled = false;
+                    btn.textContent = "Run";
+                }
+            });
+            // Schedule dialog
+            const schedDialog = document.getElementById("scheduleDialog");
+            const schedRole = document.getElementById("schedRole");
+            const schedImage = document.getElementById("schedImage");
+            const schedCron = document.getElementById("schedCron");
+            const schedVcpu = document.getElementById("schedVcpu");
+            const schedMemory = document.getElementById("schedMemory");
+            let schedNotebookId = null;
+
+            for (const role of CONFIG.availableRoles) {
+                const opt = document.createElement("option");
+                opt.value = role;
+                opt.textContent = role.split("/").pop();
+                schedRole.appendChild(opt);
+            }
+            for (const img of CONFIG.availableImages) {
+                const opt = document.createElement("option");
+                opt.value = img;
+                opt.textContent = img.split("/").pop();
+                schedImage.appendChild(opt);
+            }
+            populateVcpuSelect(schedVcpu, schedMemory);
+            schedVcpu.addEventListener("change", () => populateMemorySelect(schedVcpu, schedMemory));
+
+            content.addEventListener("click", (e) => {
+                if (!e.target.classList.contains("btn-schedule")) return;
+                schedNotebookId = e.target.dataset.id;
+                schedCron.value = e.target.dataset.cron || "";
+                schedDialog.showModal();
+            });
+
+            document.getElementById("schedCancel").addEventListener("click", () => schedDialog.close());
+
+            document.getElementById("schedSubmit").addEventListener("click", async () => {
+                const btn = document.getElementById("schedSubmit");
+                btn.disabled = true;
+                btn.textContent = "Scheduling...";
+                const schedRes = await fetch(CONFIG.apiBaseUrl + "/api/notebooks/" + encodeURIComponent(schedNotebookId) + "/schedule", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        cron_expression: schedCron.value,
+                        iam_role_arn: schedRole.value,
+                        ecr_image_uri: schedImage.value,
+                        vcpu: parseInt(schedVcpu.value),
+                        memory: parseInt(schedMemory.value),
+                    }),
+                });
+                if (schedRes.ok) {
+                    schedDialog.close();
+                    window.location.reload();
+                } else {
+                    const err = await schedRes.json().catch(() => ({}));
+                    alert("Schedule failed: " + (err.error || schedRes.status));
+                    btn.disabled = false;
+                    btn.textContent = "Schedule";
+                }
+            });
+
+            // Unschedule handler
+            content.addEventListener("click", async (e) => {
+                if (!e.target.classList.contains("btn-unsched")) return;
+                if (!confirm("Remove schedule for this notebook?")) return;
+                const nbId = e.target.dataset.id;
+                e.target.disabled = true;
+                e.target.textContent = "Removing...";
+                const unschedRes = await fetch(CONFIG.apiBaseUrl + "/api/notebooks/" + encodeURIComponent(nbId) + "/schedule", { method: "DELETE" });
+                if (unschedRes.ok) {
+                    window.location.reload();
+                } else {
+                    const err = await unschedRes.json().catch(() => ({}));
+                    alert("Unschedule failed: " + (err.error || unschedRes.status));
+                    e.target.disabled = false;
+                    e.target.textContent = "Unschedule";
+                }
+            });
+        })();
+    </script>
+</body>
+</html>
