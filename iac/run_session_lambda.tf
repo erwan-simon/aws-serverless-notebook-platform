@@ -34,6 +34,18 @@ data "aws_iam_policy_document" "run_session_lambda" {
   }
   statement {
     actions = [
+      "elasticloadbalancing:CreateTargetGroup",
+      "elasticloadbalancing:DeleteTargetGroup",
+      "elasticloadbalancing:CreateRule",
+      "elasticloadbalancing:DeleteRule",
+      "elasticloadbalancing:DescribeRules",
+      "elasticloadbalancing:DescribeTargetGroups",
+      "elasticloadbalancing:AddTags",
+    ]
+    resources = ["*"]
+  }
+  statement {
+    actions = [
       "logs:CreateLogGroup",
       "logs:CreateLogStream",
       "logs:PutLogEvents",
@@ -70,6 +82,9 @@ module "run_session" {
     TASK_DEFAULT_MEMORY          = tostring(local.task_default_memory)
     TASK_MAX_VCPU                = tostring(local.task_max_vcpu)
     TASK_MAX_MEMORY              = tostring(local.task_max_memory)
+    ALB_LISTENER_ARN             = aws_lb_listener.sessions.arn
+    ALB_DNS_NAME                 = aws_lb.sessions.dns_name
+    VPC_ID                       = data.aws_vpc.main.id
     RESOURCE_TAGS = jsonencode({
       Appli          = var.project_name
       Component      = local.domain_name

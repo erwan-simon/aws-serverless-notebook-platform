@@ -49,6 +49,7 @@ resource "aws_lambda_function" "cleanup_idle_session" {
     variables = {
       ENVIRONMENT_NAME = local.environment_name
       ECS_CLUSTER_NAME = aws_ecs_cluster.main.name
+      ALB_LISTENER_ARN = aws_lb_listener.sessions.arn
     }
   }
   logging_config {
@@ -94,6 +95,15 @@ data "aws_iam_policy_document" "cleanup_idle_session_lambda" {
     resources = [
       "arn:aws:ecs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:service/${aws_ecs_cluster.main.name}/${local.environment_name}_*",
     ]
+  }
+  statement {
+    actions = [
+      "elasticloadbalancing:DescribeTargetGroups",
+      "elasticloadbalancing:DeleteTargetGroup",
+      "elasticloadbalancing:DescribeRules",
+      "elasticloadbalancing:DeleteRule",
+    ]
+    resources = ["*"]
   }
   statement {
     actions = [

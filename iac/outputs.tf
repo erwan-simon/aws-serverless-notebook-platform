@@ -5,3 +5,7 @@ output "cloudfront_url" {
 output "api_gateway_url" {
   value = aws_apigatewayv2_stage.main.invoke_url
 }
+
+output "alb_sessions_url" {
+  value = "http://${aws_lb.sessions.dns_name}"
+}

@@ -11,6 +11,15 @@ data "aws_iam_policy_document" "stop_session_lambda" {
   }
   statement {
     actions = [
+      "elasticloadbalancing:DescribeTargetGroups",
+      "elasticloadbalancing:DeleteTargetGroup",
+      "elasticloadbalancing:DescribeRules",
+      "elasticloadbalancing:DeleteRule",
+    ]
+    resources = ["*"]
+  }
+  statement {
+    actions = [
       "logs:CreateLogGroup",
       "logs:CreateLogStream",
       "logs:PutLogEvents",
@@ -36,6 +45,7 @@ module "stop_session" {
   environment_variables = {
     ECS_CLUSTER_NAME = aws_ecs_cluster.main.name
     ENVIRONMENT_NAME = local.environment_name
+    ALB_LISTENER_ARN = aws_lb_listener.sessions.arn
   }
   tags_map = {
     Appli          = var.project_name

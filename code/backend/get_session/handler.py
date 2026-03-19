@@ -91,24 +91,7 @@ def handler(event, context):
             "body": json.dumps({"status": "pending", **task_info}),
         }
 
-    # Get public IP
-    eni_id = None
-    for attachment in task.get("attachments", []):
-        for detail in attachment.get("details", []):
-            if detail["name"] == "networkInterfaceId":
-                eni_id = detail["value"]
-                break
-
-    if not eni_id:
-        return {
-            "statusCode": 200,
-            "headers": HEADERS,
-            "body": json.dumps({"status": "pending", **task_info}),
-        }
-
-    ec2 = boto3.client("ec2")
-    eni = ec2.describe_network_interfaces(NetworkInterfaceIds=[eni_id])
-    public_ip = eni["NetworkInterfaces"][0]["Association"]["PublicIp"]
+    alb_dns_name = os.environ["ALB_DNS_NAME"]
 
     jupyter_token = ""
     for env_var in container_def.get("environment", []):
@@ -116,7 +99,7 @@ def handler(event, context):
             jupyter_token = env_var["value"]
             break
 
-    url = f"http://{public_ip}:8888"
+    url = f"http://{alb_dns_name}/s/{service_name}/"
     if jupyter_token:
         url += f"?token={jupyter_token}"
 

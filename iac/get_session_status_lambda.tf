@@ -7,10 +7,6 @@ data "aws_iam_policy_document" "get_session_status_lambda" {
     resources = ["*"]
   }
   statement {
-    actions   = ["ec2:DescribeNetworkInterfaces"]
-    resources = ["*"]
-  }
-  statement {
     actions = [
       "logs:CreateLogGroup",
       "logs:CreateLogStream",
@@ -37,6 +33,7 @@ module "get_session_status" {
   environment_variables = {
     ECS_CLUSTER_NAME = aws_ecs_cluster.main.name
     ENVIRONMENT_NAME = local.environment_name
+    ALB_DNS_NAME     = aws_lb.sessions.dns_name
   }
   tags_map = {
     Appli          = var.project_name

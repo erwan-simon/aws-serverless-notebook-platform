@@ -32,7 +32,10 @@ def handler(event, context):
             "body": json.dumps({"error": "Invalid service name"}),
         }
 
+    alb_listener_arn = os.environ["ALB_LISTENER_ARN"]
+
     ecs = boto3.client("ecs")
+    elbv2 = boto3.client("elbv2")
 
     ecs.update_service(
         cluster=cluster_name, service=service_name, desiredCount=0
@@ -41,8 +44,34 @@ def handler(event, context):
         cluster=cluster_name, service=service_name, force=True
     )
 
+    # Cleanup ALB listener rule and target group for this session
+    _cleanup_alb_resources(elbv2, alb_listener_arn, service_name)
+
     return {
         "statusCode": 200,
         "headers": HEADERS,
         "body": json.dumps({"status": "stopped"}),
     }
+
+
+def _cleanup_alb_resources(elbv2, listener_arn, service_name):
+    # Find and delete the listener rule matching this session
+    rules = elbv2.describe_rules(ListenerArn=listener_arn)["Rules"]
+    for rule in rules:
+        if rule.get("IsDefault"):
+            continue
+        for condition in rule.get("Conditions", []):
+            if condition.get("Field") == "path-pattern":
+                values = condition.get("Values", [])
+                if any(f"/s/{service_name}" in v for v in values):
+                    elbv2.delete_rule(RuleArn=rule["RuleArn"])
+                    break
+
+    # Find and delete the target group for this session
+    tg_name = service_name.replace("_", "-")[:32]
+    try:
+        tgs = elbv2.describe_target_groups(Names=[tg_name])["TargetGroups"]
+        for tg in tgs:
+            elbv2.delete_target_group(TargetGroupArn=tg["TargetGroupArn"])
+    except elbv2.exceptions.TargetGroupNotFoundException:
+        pass

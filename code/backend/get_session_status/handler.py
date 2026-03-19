@@ -38,8 +38,9 @@ def handler(event, context):
             "body": json.dumps({"error": "Invalid service name"}),
         }
 
+    alb_dns_name = os.environ["ALB_DNS_NAME"]
+
     ecs = boto3.client("ecs")
-    ec2 = boto3.client("ec2")
 
     tasks = ecs.list_tasks(
         cluster=cluster_name, serviceName=service_name, desiredStatus="RUNNING"
@@ -57,21 +58,10 @@ def handler(event, context):
     if task.get("healthStatus") != "HEALTHY":
         return STARTING_RESPONSE
 
-    eni_id = None
-    for attachment in task.get("attachments", []):
-        for detail in attachment.get("details", []):
-            if detail["name"] == "networkInterfaceId":
-                eni_id = detail["value"]
-                break
-
-    if not eni_id:
-        return STARTING_RESPONSE
-
-    eni = ec2.describe_network_interfaces(NetworkInterfaceIds=[eni_id])
-    public_ip = eni["NetworkInterfaces"][0]["Association"]["PublicIp"]
+    url = f"http://{alb_dns_name}/s/{service_name}/"
 
     return {
         "statusCode": 200,
         "headers": HEADERS,
-        "body": json.dumps({"status": "running", "url": f"http://{public_ip}:8888"}),
+        "body": json.dumps({"status": "running", "url": url}),
     }

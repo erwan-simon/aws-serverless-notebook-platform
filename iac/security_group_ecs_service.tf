@@ -11,12 +11,19 @@ resource "aws_security_group" "ecs_service" {
     ipv6_cidr_blocks = ["::/0"]
   }
   ingress {
-    from_port = 0
-    to_port   = 0
-    protocol  = "-1"
-    cidr_blocks = toset(concat([
-      for subnet in data.aws_subnet.publics : subnet.cidr_block
-    ], split(",", var.cidr_list_to_whitelist)))
+    description     = "Jupyter from ALB"
+    from_port       = 8888
+    to_port         = 8888
+    protocol        = "tcp"
+    security_groups = [aws_security_group.alb.id]
+  }
+
+  ingress {
+    description = "EFS and internal traffic from public subnets"
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = [for subnet in data.aws_subnet.publics : subnet.cidr_block]
   }
 
   tags = {

@@ -61,8 +61,13 @@ def handler(event, context):
             "body": json.dumps({"error": f"Invalid vcpu/memory. vcpu: 256-{max_vcpu}, memory: 512-{max_memory}"}),
         }
 
+    alb_listener_arn = os.environ["ALB_LISTENER_ARN"]
+    alb_dns_name = os.environ["ALB_DNS_NAME"]
+    vpc_id = os.environ["VPC_ID"]
+
     jupyter_token = secrets.token_hex(32)
     service_name = _make_service_name(environment_name, user_sub)
+    base_url = f"/s/{service_name}/"
 
     # Find or create per-user EFS access point
     efs_client = boto3.client("efs")
@@ -93,6 +98,7 @@ def handler(event, context):
         access_point_id = ap_resp["AccessPointId"]
 
     ecs = boto3.client("ecs")
+    elbv2 = boto3.client("elbv2")
 
     existing = ecs.describe_services(cluster=cluster_name, services=[service_name])
     for svc in existing.get("services", []):
@@ -127,6 +133,7 @@ def handler(event, context):
                     f"exec jupyter notebook --ip=0.0.0.0 --port=8888 --allow-root"
                     f" --NotebookApp.token=\"${{JUPYTER_TOKEN}}\" --NotebookApp.password=''"
                     f" --NotebookApp.notebook_dir=/home/jupyter"
+                    f" --NotebookApp.base_url={base_url}"
                     f" --MappingKernelManager.cull_idle_timeout={idle_timeout_seconds}"
                     f" --MappingKernelManager.cull_connected=True"
                     f" --NotebookApp.shutdown_no_activity_timeout={idle_timeout_seconds}"
@@ -201,6 +208,44 @@ def handler(event, context):
         tags=tags,
     )
 
+    # Create ALB target group for this session
+    tg_name = service_name.replace("_", "-")[:32]
+    tg_resp = elbv2.create_target_group(
+        Name=tg_name,
+        Protocol="HTTP",
+        Port=8888,
+        VpcId=vpc_id,
+        TargetType="ip",
+        HealthCheckProtocol="HTTP",
+        HealthCheckPath=f"{base_url}api",
+        HealthCheckIntervalSeconds=30,
+        HealthyThresholdCount=2,
+        UnhealthyThresholdCount=3,
+        Tags=[{"Key": "SessionService", "Value": service_name}] + [{"Key": item["key"], "Value": item["value"]} for item in tags],
+    )
+    target_group_arn = tg_resp["TargetGroups"][0]["TargetGroupArn"]
+
+    # Create ALB listener rule for path-based routing
+    # Use a hash of the service name as priority (1-50000)
+    priority = (hash(service_name) % 49999) + 1
+    elbv2.create_rule(
+        ListenerArn=alb_listener_arn,
+        Priority=priority,
+        Conditions=[
+            {
+                "Field": "path-pattern",
+                "Values": [f"/s/{service_name}/*", f"/s/{service_name}"],
+            }
+        ],
+        Actions=[
+            {
+                "Type": "forward",
+                "TargetGroupArn": target_group_arn,
+            }
+        ],
+        Tags=[{"Key": "SessionService", "Value": service_name}] + [{"Key": item["key"], "Value": item["value"]} for item in tags],
+    )
+
     ecs.create_service(
         cluster=cluster_name,
         serviceName=service_name,
@@ -216,6 +261,13 @@ def handler(event, context):
                 "assignPublicIp": "ENABLED",
             }
         },
+        loadBalancers=[
+            {
+                "targetGroupArn": target_group_arn,
+                "containerName": service_name,
+                "containerPort": 8888,
+            }
+        ],
         tags=tags,
     )
 
