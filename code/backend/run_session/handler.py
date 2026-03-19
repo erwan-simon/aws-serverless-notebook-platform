@@ -1,9 +1,14 @@
 import json
+import logging
 import os
 import re
 import secrets
 
+
 import boto3
+
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
 HEADERS = {
     "Content-Type": "application/json",
@@ -22,6 +27,29 @@ assert _origin_secret, "Failed to retrieve origin verify secret from SSM"
 def _make_service_name(environment_name, user_identity):
     slug = re.sub(r"[^a-zA-Z0-9-]", "-", user_identity)[:50]
     return f"{environment_name}_{slug}"
+
+
+def _cleanup_alb_resources(elbv2, listener_arn, service_name):
+    # Find and delete the listener rule matching this session
+    rules = elbv2.describe_rules(ListenerArn=listener_arn)["Rules"]
+    for rule in rules:
+        if rule.get("IsDefault"):
+            continue
+        for condition in rule.get("Conditions", []):
+            if condition.get("Field") == "path-pattern":
+                values = condition.get("Values", [])
+                if any(f"/s/{service_name}" in v for v in values):
+                    elbv2.delete_rule(RuleArn=rule["RuleArn"])
+                    break
+
+    # Find and delete the target group for this session
+    tg_name = service_name.replace("_", "-")[:32]
+    try:
+        tgs = elbv2.describe_target_groups(Names=[tg_name])["TargetGroups"]
+        for tg in tgs:
+            elbv2.delete_target_group(TargetGroupArn=tg["TargetGroupArn"])
+    except elbv2.exceptions.TargetGroupNotFoundException:
+        pass
 
 
 def handler(event, context):
@@ -108,6 +136,23 @@ def handler(event, context):
                 "headers": HEADERS,
                 "body": json.dumps({"service_name": service_name}),
             }
+        if svc["status"] == "DRAINING":
+            logger.info("Service %s is DRAINING, waiting for it to become inactive", service_name)
+            waiter = ecs.get_waiter("services_inactive")
+            try:
+                waiter.wait(
+                    cluster=cluster_name,
+                    services=[service_name],
+                    WaiterConfig={"Delay": 5, "MaxAttempts": 6},
+                )
+            except Exception:
+                return {
+                    "statusCode": 409,
+                    "headers": HEADERS,
+                    "body": json.dumps({"error": "Your previous session is still shutting down. Please try again in a few seconds."}),
+                }
+            # Clean up orphaned ALB resources from the previous service
+            _cleanup_alb_resources(elbv2, alb_listener_arn, service_name)
 
     tags = [{"key": k, "value": v} for k, v in resource_tags.items()]
 
