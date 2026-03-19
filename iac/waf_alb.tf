@@ -23,7 +23,7 @@ resource "aws_wafv2_web_acl" "alb" {
 
     statement {
       rate_based_statement {
-        limit              = 100
+        limit              = 1000
         aggregate_key_type = "IP"
       }
     }
