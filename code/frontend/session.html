@@ -5,51 +5,116 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Session Details</title>
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; max-width: 600px; margin: 40px auto; padding: 0 20px; color: #333; }
-        h1 { border-bottom: 2px solid #eee; padding-bottom: 10px; }
-        .status-badge { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; }
-        .status-starting { background: #fff3e0; color: #e65100; border: 1px solid #ffcc80; }
-        .status-running { background: #e3f2fd; color: #1565c0; border: 1px solid #90caf9; }
-        .status-error { background: #ffebee; color: #c62828; border: 1px solid #ef9a9a; }
-        .status-draining { background: #fff3e0; color: #e65100; border: 1px solid #ffcc80; }
-        .status-stopped { background: #f5f5f5; color: #999; border: 1px solid #e0e0e0; }
-        .detail-grid { display: grid; grid-template-columns: 120px 1fr; gap: 8px 16px; font-size: 14px; margin: 20px 0; }
-        .detail-grid dt { color: #888; }
-        .detail-grid dd { margin: 0; font-weight: 500; word-break: break-all; }
-        .message { font-size: 13px; color: #666; margin-top: 4px; }
-        a.btn { display: inline-block; padding: 8px 18px; border-radius: 4px; text-decoration: none; font-size: 14px; margin-right: 8px; }
-        .btn-open { background: #e8f5e9; color: #2e7d32; }
-        .btn-stop { background: #ffebee; color: #c62828; cursor: pointer; border: none; font-size: 14px; padding: 8px 18px; border-radius: 4px; }
-        .btn-back { background: #f5f5f5; color: #333; }
-        .actions { margin-top: 24px; }
-        .spinner { width: 30px; height: 30px; border: 3px solid #eee; border-top: 3px solid #1565c0; border-radius: 50%; animation: spin 1s linear infinite; margin: 30px auto; }
+        body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; max-width: 640px; margin: 40px auto; padding: 0 20px; color: #333; }
+        h1 { font-size: 22px; margin-bottom: 24px; }
+        .back-link { font-size: 13px; color: #888; text-decoration: none; }
+        .back-link:hover { color: #555; }
+
+        /* Status banner */
+        .status-banner { display: flex; align-items: center; gap: 12px; padding: 14px 18px; border-radius: 8px; margin-bottom: 20px; }
+        .status-banner.running { background: #e8f5e9; border: 1px solid #a5d6a7; }
+        .status-banner.starting { background: #fff8e1; border: 1px solid #ffe082; }
+        .status-banner.error { background: #ffebee; border: 1px solid #ef9a9a; }
+        .status-banner.draining { background: #fff8e1; border: 1px solid #ffe082; }
+        .status-banner.stopped { background: #f5f5f5; border: 1px solid #e0e0e0; }
+        .status-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+        .running .status-dot { background: #43a047; }
+        .starting .status-dot { background: #ffa000; animation: pulse 1.5s ease-in-out infinite; }
+        .error .status-dot { background: #e53935; }
+        .draining .status-dot { background: #ffa000; animation: pulse 1.5s ease-in-out infinite; }
+        .stopped .status-dot { background: #bbb; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+        .status-label { font-weight: 600; font-size: 15px; }
+        .status-message { font-size: 13px; color: #666; }
+        .status-uptime { margin-left: auto; font-size: 12px; color: #888; white-space: nowrap; }
+
+        /* Sections */
+        .section { margin-bottom: 20px; }
+        .section-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #999; margin-bottom: 8px; }
+
+        /* Config grid */
+        .config-grid { display: grid; grid-template-columns: 1fr; gap: 1px; background: #e8e8e8; border-radius: 8px; overflow: hidden; }
+        .config-item { background: #fff; padding: 12px 14px; display: flex; align-items: center; gap: 12px; overflow: hidden; }
+        .config-info { flex: 1; min-width: 0; overflow: hidden; }
+        .config-label { font-size: 11px; color: #999; margin-bottom: 2px; }
+        .config-value { font-size: 14px; font-weight: 500; }
+        .config-value.mono { font-family: 'SF Mono', SFMono-Regular, Menlo, monospace; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+        /* Link pills */
+        .link-pill { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 20px; font-size: 13px; font-weight: 500; text-decoration: none; border: 1px solid #ddd; background: #fff; color: #444; transition: all 0.15s; flex-shrink: 0; white-space: nowrap; }
+        .link-pill:hover { background: #f5f5f5; border-color: #bbb; color: #222; }
+        .link-pill .icon { font-size: 15px; opacity: 0.6; }
+        .link-pill .arrow { font-size: 11px; opacity: 0.4; }
+
+        /* Actions */
+        .actions { display: flex; gap: 10px; margin-top: 28px; padding-top: 20px; border-top: 1px solid #eee; }
+        a.btn { display: inline-block; padding: 9px 20px; border-radius: 6px; text-decoration: none; font-size: 14px; font-weight: 500; }
+        .btn-open { background: #2e7d32; color: #fff; }
+        .btn-open:hover { background: #256d29; }
+        .btn-stop { background: #fff; color: #c62828; cursor: pointer; border: 1px solid #e57373; font-size: 14px; font-weight: 500; padding: 9px 20px; border-radius: 6px; }
+        .btn-stop:hover { background: #ffebee; }
+        .btn-back { background: #f5f5f5; color: #555; border: 1px solid #ddd; }
+        .btn-back:hover { background: #eee; }
+
+        /* Loading */
+        .spinner { width: 28px; height: 28px; border: 3px solid #eee; border-top: 3px solid #1565c0; border-radius: 50%; animation: spin 1s linear infinite; margin: 40px auto; }
         @keyframes spin { to { transform: rotate(360deg); } }
         .loading { text-align: center; color: #999; }
     </style>
 </head>
 <body>
-    <h1>Session Details</h1>
+    <a class="back-link" href="index.html">&larr; Back to notebooks</a>
+    <h1>Session</h1>
+
     <div id="loading" class="loading">
         <div class="spinner"></div>
         <p>Loading session info...</p>
     </div>
+
     <div id="content" style="display:none;">
-        <dl class="detail-grid">
-            <dt>Status</dt>
-            <dd><span id="statusBadge" class="status-badge"></span> <span id="statusMessage" class="message"></span></dd>
-            <dt>Uptime</dt>
-            <dd id="uptime">-</dd>
-            <dt>Image</dt>
-            <dd id="image">-</dd>
-            <dt>IAM Role</dt>
-            <dd id="role">-</dd>
-            <dt>vCPU</dt>
-            <dd id="vcpu">-</dd>
-            <dt>Memory</dt>
-            <dd id="memory">-</dd>
-        </dl>
+        <div id="statusBanner" class="status-banner stopped">
+            <span class="status-dot"></span>
+            <span class="status-label" id="statusLabel">Stopped</span>
+            <span class="status-message" id="statusMessage"></span>
+            <span class="status-uptime" id="uptime"></span>
+        </div>
+
+        <div class="section" id="configSection">
+            <div class="section-title">Configuration</div>
+            <div class="config-grid">
+                <div class="config-item">
+                    <div class="config-info">
+                        <div class="config-label">Image</div>
+                        <div class="config-value mono" id="image" title="">-</div>
+                    </div>
+                    <span id="imageLink"></span>
+                </div>
+                <div class="config-item">
+                    <div class="config-info">
+                        <div class="config-label">IAM Role</div>
+                        <div class="config-value mono" id="role" title="">-</div>
+                    </div>
+                    <span id="roleLink"></span>
+                </div>
+                <div class="config-item">
+                    <div class="config-info">
+                        <div class="config-label">vCPU / Memory</div>
+                        <div class="config-value"><span id="vcpu">-</span> &middot; <span id="memory">-</span></div>
+                    </div>
+                    <span id="insightsLink"></span>
+                </div>
+                <div class="config-item">
+                    <div class="config-info">
+                        <div class="config-label">Activity</div>
+                        <div class="config-value" id="activityStatus">-</div>
+                    </div>
+                    <span id="logsLink"></span>
+                </div>
+            </div>
+        </div>
+
         <div class="actions">
-            <a class="btn btn-open" id="openBtn" href="#" style="display:none;" target="_blank">Open Session</a>
+            <a class="btn btn-open" id="openBtn" href="#" style="display:none;" target="_blank">Open JupyterLab</a>
             <button class="btn-stop" id="stopBtn" style="display:none;">Stop Session</button>
             <a class="btn btn-back" href="index.html">Back</a>
         </div>
@@ -72,6 +137,15 @@
                 return h + "h " + (m ? m + "min" : "");
             }
 
+            function addLinkPill(container, icon, label, href) {
+                const a = document.createElement("a");
+                a.className = "link-pill";
+                a.href = href;
+                a.target = "_blank";
+                a.innerHTML = '<span class="icon">' + icon + '</span>' + label + '<span class="arrow">&#8599;</span>';
+                container.appendChild(a);
+            }
+
             async function loadSession() {
                 const res = await fetch(CONFIG.apiBaseUrl + "/api/sessions/me");
                 if (!res.ok) return null;
@@ -82,18 +156,18 @@
                 document.getElementById("loading").style.display = "none";
                 document.getElementById("content").style.display = "block";
 
+                // Status banner
+                const banner = document.getElementById("statusBanner");
+                banner.className = "status-banner " + session.status;
+                document.getElementById("statusLabel").textContent = session.status.charAt(0).toUpperCase() + session.status.slice(1);
+                document.getElementById("statusMessage").textContent = session.message || "";
+
                 if (session.status === "stopped") {
-                    document.getElementById("statusBadge").textContent = "Stopped";
-                    document.getElementById("statusBadge").className = "status-badge status-stopped";
-                    document.getElementById("statusMessage").textContent = "No active session";
+                    document.getElementById("configSection").style.display = "none";
                     return;
                 }
 
-                const badge = document.getElementById("statusBadge");
-                badge.textContent = session.status.charAt(0).toUpperCase() + session.status.slice(1);
-                badge.className = "status-badge status-" + session.status;
-                document.getElementById("statusMessage").textContent = session.message || "";
-
+                // Uptime
                 if (session.started_at) {
                     document.getElementById("uptime").textContent = uptimeStr(session.started_at);
                     setInterval(() => {
@@ -101,11 +175,69 @@
                     }, 30000);
                 }
 
-                document.getElementById("image").textContent = session.image || "-";
-                document.getElementById("role").textContent = session.iam_role || "-";
+                // Config
+                const imgEl = document.getElementById("image");
+                if (session.image) {
+                    const shortImg = session.image.split("/").pop();
+                    imgEl.textContent = shortImg;
+                    imgEl.title = session.image;
+                }
+
+                const roleEl = document.getElementById("role");
+                if (session.iam_role) {
+                    const shortRole = session.iam_role.split("/").pop();
+                    roleEl.textContent = shortRole;
+                    roleEl.title = session.iam_role;
+                }
+
                 document.getElementById("vcpu").textContent = session.vcpu ? vcpuLabel(session.vcpu) : "-";
                 document.getElementById("memory").textContent = session.memory ? memLabel(session.memory) : "-";
 
+                // AWS Console links (inline with config items)
+                if (session.image) {
+                    const match = session.image.match(/^(\d+)\.dkr\.ecr\.([^.]+)\.amazonaws\.com\/([^:]+)/);
+                    if (match) {
+                        const [, account, region, repo] = match;
+                        let ecrUrl = "https://" + region + ".console.aws.amazon.com/ecr/repositories/private/" + account + "/" + repo;
+                        if (session.image_digest) {
+                            ecrUrl += "/_/image/" + session.image_digest + "/details";
+                        }
+                        ecrUrl += "?region=" + region;
+                        addLinkPill(document.getElementById("imageLink"), "&#x1F4E6;", "ECR", ecrUrl);
+                    }
+                }
+
+                if (session.iam_role) {
+                    const roleName = session.iam_role.split("/").pop();
+                    addLinkPill(document.getElementById("roleLink"), "&#x1F512;", "IAM", "https://console.aws.amazon.com/iam/home#/roles/details/" + encodeURIComponent(roleName));
+                }
+
+                if (session.task_id && session.service_name) {
+                    const region = (session.image || "").match(/\.ecr\.([^.]+)\./)?.[1] || "eu-west-1";
+                    const cluster = session.service_name.replace(/_[^_]+$/, "");
+                    const insightsUrl = "https://" + region + ".console.aws.amazon.com/cloudwatch/home?region=" + region
+                        + "#container-insights:performance/ECS:Task:Granular?~(query~(controls~(CW*3a*3aECS.cluster~(~'"
+                        + encodeURIComponent(cluster)
+                        + ")~CW*3a*3aECS.service~(~'"
+                        + encodeURIComponent(session.service_name)
+                        + ")~CW*3a*3aECS.taskId~(~'"
+                        + encodeURIComponent(session.task_id)
+                        + "))))";
+                    addLinkPill(document.getElementById("insightsLink"), "&#x1F4CA;", "Monitoring", insightsUrl);
+                }
+
+                if (session.service_name && session.task_id) {
+                    const region = (session.image || "").match(/\.ecr\.([^.]+)\./)?.[1] || "eu-west-1";
+                    const logGroup = "/ecs/" + session.service_name;
+                    const logStream = "ecs/" + session.service_name + "/" + session.task_id;
+                    const logsUrl = "https://" + region + ".console.aws.amazon.com/cloudwatch/home?region=" + region
+                        + "#logsV2:log-groups/log-group/" + encodeURIComponent(encodeURIComponent(logGroup))
+                        + "/log-events/" + encodeURIComponent(encodeURIComponent(logStream));
+                    addLinkPill(document.getElementById("logsLink"), "&#x1F4DD;", "Logs", logsUrl);
+                    document.getElementById("activityStatus").textContent = "Session logs";
+                }
+
+                // Actions
                 if (session.status === "running" && session.url) {
                     const openBtn = document.getElementById("openBtn");
                     openBtn.href = session.url;

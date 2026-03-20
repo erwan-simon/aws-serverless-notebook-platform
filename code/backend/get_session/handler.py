@@ -96,11 +96,17 @@ def handler(event, context):
     td = task_def["taskDefinition"]
     container_def = td["containerDefinitions"][0]
 
+    container = task.get("containers", [{}])[0]
+    image_digest = container.get("imageDigest", "")
+    task_id = task["taskArn"].split("/")[-1]
+
     extra = {
         "vcpu": td.get("cpu", ""),
         "memory": td.get("memory", ""),
         "image": container_def.get("image", ""),
+        "image_digest": image_digest,
         "iam_role": td.get("taskRoleArn", ""),
+        "task_id": task_id,
         "started_at": task.get("startedAt", task.get("createdAt", "")),
     }
     if hasattr(extra["started_at"], "isoformat"):
