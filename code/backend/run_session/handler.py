@@ -175,13 +175,13 @@ def handler(event, context):
                 "essential": True,
                 "entryPoint": ["/bin/bash", "-c"],
                 "command": [
-                    f"exec jupyter notebook --ip=0.0.0.0 --port=8888 --allow-root"
-                    f" --NotebookApp.token=\"${{JUPYTER_TOKEN}}\" --NotebookApp.password=''"
-                    f" --NotebookApp.notebook_dir=/home/jupyter"
-                    f" --NotebookApp.base_url={base_url}"
+                    f"exec jupyter lab --ip=0.0.0.0 --port=8888 --allow-root"
+                    f" --ServerApp.token=\"${{JUPYTER_TOKEN}}\" --ServerApp.password=''"
+                    f" --ServerApp.notebook_dir=/home/jupyter"
+                    f" --ServerApp.base_url={base_url}"
                     f" --MappingKernelManager.cull_idle_timeout={idle_timeout_seconds}"
                     f" --MappingKernelManager.cull_connected=True"
-                    f" --NotebookApp.shutdown_no_activity_timeout={idle_timeout_seconds}"
+                    f" --ServerApp.shutdown_no_activity_timeout={idle_timeout_seconds}"
                 ],
                 "portMappings": [
                     {

@@ -18,7 +18,7 @@ locals {
 }
 
 module "cleanup_idle_session_image" {
-  source                = "git::https://github.com/erwan-simon/terraform-module-build-image-and-push-to-ecr//iac/?ref=v1.0.1"
+  source                = "git::https://github.com/erwan-simon/terraform-module-build-image-and-push-to-ecr//iac/?ref=v1.0.2"
   ecr_name              = local.cleanup_idle_session_function_name
   code_path             = abspath(local.cleanup_idle_session_code_path)
   image_tag             = local.cleanup_idle_session_image_tag

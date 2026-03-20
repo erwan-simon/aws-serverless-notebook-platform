@@ -19,7 +19,7 @@ locals {
 }
 
 module "build_base_image" {
-  source = "git::https://github.com/erwan-simon/terraform-module-build-image-and-push-to-ecr//iac/?ref=v1.0.1"
+  source = "git::https://github.com/erwan-simon/terraform-module-build-image-and-push-to-ecr//iac/?ref=v1.0.2"
 
   ecr_name              = "${local.environment_name}_base_image"
   tags_map              = {}
