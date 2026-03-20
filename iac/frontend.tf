@@ -22,6 +22,14 @@ resource "aws_s3_object" "run_html" {
   etag         = filemd5("${path.root}/../code/frontend/run.html")
 }
 
+resource "aws_s3_object" "session_html" {
+  bucket       = aws_s3_bucket.frontend.id
+  key          = "session.html"
+  source       = "${path.root}/../code/frontend/session.html"
+  content_type = "text/html"
+  etag         = filemd5("${path.root}/../code/frontend/session.html")
+}
+
 resource "aws_s3_object" "status_html" {
   bucket       = aws_s3_bucket.frontend.id
   key          = "status.html"

@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Session Details</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; max-width: 600px; margin: 40px auto; padding: 0 20px; color: #333; }
+        h1 { border-bottom: 2px solid #eee; padding-bottom: 10px; }
+        .status-badge { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; }
+        .status-starting { background: #fff3e0; color: #e65100; border: 1px solid #ffcc80; }
+        .status-running { background: #e3f2fd; color: #1565c0; border: 1px solid #90caf9; }
+        .status-error { background: #ffebee; color: #c62828; border: 1px solid #ef9a9a; }
+        .status-draining { background: #fff3e0; color: #e65100; border: 1px solid #ffcc80; }
+        .status-stopped { background: #f5f5f5; color: #999; border: 1px solid #e0e0e0; }
+        .detail-grid { display: grid; grid-template-columns: 120px 1fr; gap: 8px 16px; font-size: 14px; margin: 20px 0; }
+        .detail-grid dt { color: #888; }
+        .detail-grid dd { margin: 0; font-weight: 500; word-break: break-all; }
+        .message { font-size: 13px; color: #666; margin-top: 4px; }
+        a.btn { display: inline-block; padding: 8px 18px; border-radius: 4px; text-decoration: none; font-size: 14px; margin-right: 8px; }
+        .btn-open { background: #e8f5e9; color: #2e7d32; }
+        .btn-stop { background: #ffebee; color: #c62828; cursor: pointer; border: none; font-size: 14px; padding: 8px 18px; border-radius: 4px; }
+        .btn-back { background: #f5f5f5; color: #333; }
+        .actions { margin-top: 24px; }
+        .spinner { width: 30px; height: 30px; border: 3px solid #eee; border-top: 3px solid #1565c0; border-radius: 50%; animation: spin 1s linear infinite; margin: 30px auto; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .loading { text-align: center; color: #999; }
+    </style>
+</head>
+<body>
+    <h1>Session Details</h1>
+    <div id="loading" class="loading">
+        <div class="spinner"></div>
+        <p>Loading session info...</p>
+    </div>
+    <div id="content" style="display:none;">
+        <dl class="detail-grid">
+            <dt>Status</dt>
+            <dd><span id="statusBadge" class="status-badge"></span> <span id="statusMessage" class="message"></span></dd>
+            <dt>Uptime</dt>
+            <dd id="uptime">-</dd>
+            <dt>Image</dt>
+            <dd id="image">-</dd>
+            <dt>IAM Role</dt>
+            <dd id="role">-</dd>
+            <dt>vCPU</dt>
+            <dd id="vcpu">-</dd>
+            <dt>Memory</dt>
+            <dd id="memory">-</dd>
+        </dl>
+        <div class="actions">
+            <a class="btn btn-open" id="openBtn" href="#" style="display:none;" target="_blank">Open Session</a>
+            <button class="btn-stop" id="stopBtn" style="display:none;">Stop Session</button>
+            <a class="btn btn-back" href="index.html">Back</a>
+        </div>
+    </div>
+
+    <script src="config.js"></script>
+    <script src="auth.js"></script>
+    <script>
+        (async function () {
+            await window._authReady;
+
+            function vcpuLabel(v) { v = parseInt(v); return v < 1024 ? (v / 1024).toFixed(2).replace(/0$/, "") + " vCPU" : (v / 1024) + " vCPU"; }
+            function memLabel(m) { m = parseInt(m); return m >= 1024 ? (m / 1024) + " GB" : m + " MB"; }
+            function uptimeStr(iso) {
+                const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+                if (diff < 60) return diff + "s";
+                if (diff < 3600) return Math.floor(diff / 60) + "min";
+                const h = Math.floor(diff / 3600);
+                const m = Math.floor((diff % 3600) / 60);
+                return h + "h " + (m ? m + "min" : "");
+            }
+
+            async function loadSession() {
+                const res = await fetch(CONFIG.apiBaseUrl + "/api/sessions/me");
+                if (!res.ok) return null;
+                return await res.json();
+            }
+
+            function render(session) {
+                document.getElementById("loading").style.display = "none";
+                document.getElementById("content").style.display = "block";
+
+                if (session.status === "stopped") {
+                    document.getElementById("statusBadge").textContent = "Stopped";
+                    document.getElementById("statusBadge").className = "status-badge status-stopped";
+                    document.getElementById("statusMessage").textContent = "No active session";
+                    return;
+                }
+
+                const badge = document.getElementById("statusBadge");
+                badge.textContent = session.status.charAt(0).toUpperCase() + session.status.slice(1);
+                badge.className = "status-badge status-" + session.status;
+                document.getElementById("statusMessage").textContent = session.message || "";
+
+                if (session.started_at) {
+                    document.getElementById("uptime").textContent = uptimeStr(session.started_at);
+                    setInterval(() => {
+                        document.getElementById("uptime").textContent = uptimeStr(session.started_at);
+                    }, 30000);
+                }
+
+                document.getElementById("image").textContent = session.image || "-";
+                document.getElementById("role").textContent = session.iam_role || "-";
+                document.getElementById("vcpu").textContent = session.vcpu ? vcpuLabel(session.vcpu) : "-";
+                document.getElementById("memory").textContent = session.memory ? memLabel(session.memory) : "-";
+
+                if (session.status === "running" && session.url) {
+                    const openBtn = document.getElementById("openBtn");
+                    openBtn.href = session.url;
+                    openBtn.style.display = "inline-block";
+                }
+
+                if (session.status !== "stopped") {
+                    const stopBtn = document.getElementById("stopBtn");
+                    stopBtn.style.display = "inline-block";
+                    stopBtn.addEventListener("click", async () => {
+                        if (!confirm("Stop your session?")) return;
+                        stopBtn.disabled = true;
+                        stopBtn.textContent = "Stopping...";
+                        await fetch(CONFIG.apiBaseUrl + "/api/sessions/" + encodeURIComponent(session.service_name), { method: "DELETE" });
+                        window.location.href = "index.html";
+                    });
+                }
+            }
+
+            const session = await loadSession();
+            if (session) {
+                render(session);
+            } else {
+                document.getElementById("loading").innerHTML = "<p style='color:red'>Failed to load session info</p>";
+            }
+        })();
+    </script>
+</body>
+</html>

@@ -21,17 +21,14 @@
         .btn-upload { background: #fff; color: #444; border: 1px solid #ccc; cursor: pointer; transition: all 0.15s; padding: 7px 18px; font-weight: 500; letter-spacing: 0.01em; }
         .btn-upload:hover { background: #f5f5f5; border-color: #999; color: #222; }
         .upload-status { font-size: 13px; color: #666; }
-        .session-card { border: 1px solid #e0e0e0; border-radius: 8px; padding: 16px 20px; margin-bottom: 20px; background: #fafafa; }
-        .session-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
-        .session-card-header h2 { margin: 0; font-size: 16px; font-weight: 600; }
-        .session-card-body { display: none; }
-        .session-card-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 20px; font-size: 13px; margin-bottom: 12px; }
-        .session-card-grid dt { color: #888; }
-        .session-card-grid dd { margin: 0; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .session-card-actions { display: flex; gap: 8px; align-items: center; }
+        .session-bar { display: flex; align-items: center; gap: 12px; border: 1px solid #e0e0e0; border-radius: 8px; padding: 12px 20px; margin-bottom: 20px; background: #fafafa; flex-wrap: wrap; }
+        .session-bar h2 { margin: 0; font-size: 15px; font-weight: 600; white-space: nowrap; }
+        .session-info { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
+        .session-message { font-size: 12px; color: #666; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .session-uptime { font-size: 12px; color: #888; white-space: nowrap; }
+        .session-actions { display: flex; gap: 8px; align-items: center; margin-left: auto; }
         .btn-stop { background: #ffebee; color: #c62828; cursor: pointer; border: none; font-size: 13px; padding: 5px 14px; border-radius: 4px; }
         .btn-open { background: #e8f5e9; color: #2e7d32; }
-        .session-uptime { font-size: 12px; color: #888; }
         .status-badge { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; }
         .status-succeeded { background: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7; }
         .status-failed { background: #ffebee; color: #c62828; border: 1px solid #ef9a9a; }
@@ -71,26 +68,21 @@
 </head>
 <body>
     <h1>Notebooks</h1>
-    <div class="session-card" id="sessionCard">
-        <div class="session-card-header">
-            <h2>Session</h2>
-            <span id="sessionBadge" class="status-badge status-stopped" style="display:none;"></span>
-        </div>
+    <div class="session-bar" id="sessionCard">
+        <h2>Session</h2>
         <div id="sessionStopped">
             <a class="btn btn-run" href="run.html">Launch Session</a>
         </div>
-        <div class="session-card-body" id="sessionActive">
-            <dl class="session-card-grid">
-                <dt>Status</dt><dd><span id="sessionBadgeInline" class="status-badge"></span> <span id="sessionMessage" style="font-size:12px; color:#666;"></span></dd>
-                <dt>Uptime</dt><dd><span id="sessionUptime" class="session-uptime"></span> <span id="sessionTimeout" style="color:#bbb; font-size:11px;"></span></dd>
-                <dt>Image</dt><dd id="sessionImage" title=""></dd>
-                <dt>IAM Role</dt><dd id="sessionRole" title=""></dd>
-                <dt>vCPU</dt><dd id="sessionVcpu"></dd>
-                <dt>Memory</dt><dd id="sessionMemory"></dd>
-            </dl>
-            <div class="session-card-actions">
+        <div id="sessionActive" style="display:none; contents;">
+            <div class="session-info">
+                <span id="sessionBadgeInline" class="status-badge"></span>
+                <span id="sessionMessage" class="session-message"></span>
+                <span id="sessionUptime" class="session-uptime"></span>
+            </div>
+            <div class="session-actions">
                 <a class="btn btn-open" id="sessionBtn" href="#">Open Session</a>
-                <button class="btn-stop" id="sessionStop">Stop session</button>
+                <a class="btn" href="session.html" style="background:#f3e5f5; color:#7b1fa2;">Details</a>
+                <button class="btn-stop" id="sessionStop">Stop</button>
             </div>
         </div>
     </div>
@@ -167,29 +159,22 @@
 
             function showSessionCard(session) {
                 sessionStopped.style.display = "none";
-                sessionActive.style.display = "block";
+                sessionActive.style.display = "contents";
 
                 const badge = document.getElementById("sessionBadgeInline");
+                badge.style.display = "inline-block";
                 badge.textContent = session.status.charAt(0).toUpperCase() + session.status.slice(1);
                 badge.className = "status-badge status-" + session.status;
                 document.getElementById("sessionMessage").textContent = session.message || "";
 
-                document.getElementById("sessionImage").textContent = (session.image || "").split("/").pop();
-                document.getElementById("sessionImage").title = session.image || "";
-                document.getElementById("sessionRole").textContent = (session.iam_role || "").split("/").pop();
-                document.getElementById("sessionRole").title = session.iam_role || "";
-                document.getElementById("sessionVcpu").textContent = session.vcpu ? vcpuLabel(session.vcpu) : "-";
-                document.getElementById("sessionMemory").textContent = session.memory ? memLabel(session.memory) : "-";
-
-                document.getElementById("sessionTimeout").textContent = "(timeout in case of inactivity: " + CONFIG.sessionIdleTimeoutMinutes + " minutes)";
                 if (session.started_at) {
-                    document.getElementById("sessionUptime").textContent = uptimeStr(session.started_at);
+                    document.getElementById("sessionUptime").textContent = "Up " + uptimeStr(session.started_at);
                     clearInterval(uptimeInterval);
                     uptimeInterval = setInterval(() => {
-                        document.getElementById("sessionUptime").textContent = uptimeStr(session.started_at);
+                        document.getElementById("sessionUptime").textContent = "Up " + uptimeStr(session.started_at);
                     }, 30000);
                 } else {
-                    document.getElementById("sessionUptime").textContent = "-";
+                    document.getElementById("sessionUptime").textContent = "";
                 }
 
                 if (session.status === "running") {
@@ -197,7 +182,7 @@
                     sessionBtn.target = "_blank";
                     sessionBtn.textContent = "Open Session";
                 } else {
-                    sessionBtn.href = "status.html?service_name=" + encodeURIComponent(session.service_name);
+                    sessionBtn.href = "status.html";
                     sessionBtn.textContent = "View Session";
                 }
 
