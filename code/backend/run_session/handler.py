@@ -215,11 +215,11 @@ def handler(event, context):
                     },
                 ],
                 "healthCheck": {
-                    "command": ["CMD-SHELL", "/etc/jupyter/docker_healthcheck.py || exit 1"],
+                    "command": ["CMD-SHELL", "/etc/jupyter/docker_healthcheck.py >> /proc/1/fd/1 2>&1 || exit 1"],
                     "interval": 60,
                     "timeout": 5,
-                    "retries": 3,
-                    "startPeriod": 90,
+                    "retries": 5,
+                    "startPeriod": 180,
                 },
                 "logConfiguration": {
                     "logDriver": "awslogs",

@@ -55,6 +55,8 @@ def handler(event, context):
         if svc["status"] == "ACTIVE":
             active_service = svc
             break
+        if svc["status"] == "DRAINING":
+            return _response("draining", service_name, message="Previous session is shutting down, please wait...")
 
     if not active_service:
         return _response("stopped", service_name)
