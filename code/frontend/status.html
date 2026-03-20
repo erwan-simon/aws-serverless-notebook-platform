@@ -14,18 +14,25 @@
         .btn-stop { background: #c62828; color: #fff; }
         .btn-back { background: #eee; color: #333; }
         .hidden { display: none; }
+        .error-box { background: #fdecea; border: 1px solid #f5c6cb; border-radius: 6px; padding: 16px; margin: 20px 0; color: #721c24; text-align: left; }
     </style>
 </head>
 <body>
     <h1>Session</h1>
     <div id="starting">
         <div class="spinner"></div>
-        <p class="status">Starting Jupyter session...</p>
+        <p class="status" id="status-msg">Starting Jupyter session...</p>
     </div>
     <div id="running" class="hidden">
         <p class="status">Jupyter is ready!</p>
         <p id="redirect-msg"></p>
         <a class="btn btn-open" id="openBtn" href="#" target="_blank">Open Jupyter</a>
+    </div>
+    <div id="error" class="hidden">
+        <div class="error-box">
+            <strong id="error-title">Error</strong>
+            <p id="error-msg"></p>
+        </div>
     </div>
     <div style="margin-top: 30px;">
         <a class="btn btn-stop" id="stopBtn" href="#">Stop Session</a>
@@ -38,24 +45,27 @@
         (async function () {
             await window._authReady;
 
-            const params = new URLSearchParams(window.location.search);
-            const serviceName = params.get("service_name");
-            const jupyterToken = params.get("jupyter_token");
-
             let polling = null;
 
             async function checkStatus() {
-                const res = await fetch(CONFIG.apiBaseUrl + "/api/sessions/" + encodeURIComponent(serviceName) + "/status");
+                const res = await fetch(CONFIG.apiBaseUrl + "/api/sessions/me");
                 const data = await res.json();
 
                 if (data.status === "running") {
                     clearInterval(polling);
-                    const jupyterUrl = data.url + "?token=" + encodeURIComponent(jupyterToken);
                     document.getElementById("starting").classList.add("hidden");
                     document.getElementById("running").classList.remove("hidden");
-                    document.getElementById("openBtn").href = jupyterUrl;
+                    document.getElementById("openBtn").href = data.url;
                     document.getElementById("redirect-msg").textContent = "Redirecting in 3 seconds...";
-                    setTimeout(() => { window.open(jupyterUrl, "_blank"); }, 3000);
+                    setTimeout(() => { window.open(data.url, "_blank"); }, 3000);
+                } else if (data.status === "error") {
+                    clearInterval(polling);
+                    document.getElementById("starting").classList.add("hidden");
+                    document.getElementById("error").classList.remove("hidden");
+                    document.getElementById("error-title").textContent = "Session failed";
+                    document.getElementById("error-msg").textContent = data.message || "Unknown error";
+                } else if (data.message) {
+                    document.getElementById("status-msg").textContent = data.message;
                 }
             }
 

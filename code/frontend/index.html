@@ -35,9 +35,10 @@
         .status-badge { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; }
         .status-succeeded { background: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7; }
         .status-failed { background: #ffebee; color: #c62828; border: 1px solid #ef9a9a; }
-        .status-pending { background: #fff3e0; color: #e65100; border: 1px solid #ffcc80; }
+        .status-starting { background: #fff3e0; color: #e65100; border: 1px solid #ffcc80; }
         .status-running { background: #e3f2fd; color: #1565c0; border: 1px solid #90caf9; }
         .status-stopped { background: #f5f5f5; color: #999; border: 1px solid #e0e0e0; }
+        .status-error { background: #ffebee; color: #c62828; border: 1px solid #ef9a9a; }
         .cron-cell { font-family: monospace; font-size: 12px; color: #555; }
         .filters-bar { display: flex; gap: 10px; align-items: center; margin-top: 10px; flex-wrap: wrap; }
         .filters-bar select { padding: 6px 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; }
@@ -79,7 +80,7 @@
         </div>
         <div class="session-card-body" id="sessionActive">
             <dl class="session-card-grid">
-                <dt>Status</dt><dd><span id="sessionBadgeInline" class="status-badge"></span></dd>
+                <dt>Status</dt><dd><span id="sessionBadgeInline" class="status-badge"></span> <span id="sessionMessage" style="font-size:12px; color:#666;"></span></dd>
                 <dt>Uptime</dt><dd><span id="sessionUptime" class="session-uptime"></span> <span id="sessionTimeout" style="color:#bbb; font-size:11px;"></span></dd>
                 <dt>Image</dt><dd id="sessionImage" title=""></dd>
                 <dt>IAM Role</dt><dd id="sessionRole" title=""></dd>
@@ -170,6 +171,7 @@
                 const badge = document.getElementById("sessionBadgeInline");
                 badge.textContent = session.status.charAt(0).toUpperCase() + session.status.slice(1);
                 badge.className = "status-badge status-" + session.status;
+                document.getElementById("sessionMessage").textContent = session.message || "";
 
                 document.getElementById("sessionImage").textContent = (session.image || "").split("/").pop();
                 document.getElementById("sessionImage").title = session.image || "";
@@ -204,7 +206,7 @@
             const sessionRes = await fetch(CONFIG.apiBaseUrl + "/api/sessions/me");
             if (sessionRes.ok) {
                 const session = await sessionRes.json();
-                if (session.status === "running" || session.status === "pending") {
+                if (session.status !== "stopped") {
                     showSessionCard(session);
                 }
             }

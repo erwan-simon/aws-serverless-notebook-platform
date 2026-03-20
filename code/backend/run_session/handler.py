@@ -209,6 +209,10 @@ def handler(event, context):
                         "name": "JUPYTER_TOKEN",
                         "value": jupyter_token,
                     },
+                    {
+                        "name": "HOME",
+                        "value": "/home/jupyter",
+                    },
                 ],
                 "healthCheck": {
                     "command": ["CMD-SHELL", "/etc/jupyter/docker_healthcheck.py || exit 1"],
