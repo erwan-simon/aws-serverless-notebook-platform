@@ -213,6 +213,10 @@ def handler(event, context):
                         "name": "HOME",
                         "value": "/home/jupyter",
                     },
+                    {
+                        "name": "NB_USER",
+                        "value": "jupyter",
+                    },
                 ],
                 "healthCheck": {
                     "command": ["CMD-SHELL", "/etc/jupyter/docker_healthcheck.py >> /proc/1/fd/1 2>&1 || exit 1"],
