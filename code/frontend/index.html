@@ -93,6 +93,19 @@
         <h3>Upload Notebook</h3>
         <label for="uploadName">Name</label>
         <input type="text" id="uploadName">
+        <details style="margin-top: 14px; font-size: 13px;">
+            <summary style="cursor: pointer; font-weight: 600; color: #555;">Default configuration <span style="font-weight: 400; color: #999;">(optional)</span></summary>
+            <div style="margin-top: 10px;">
+                <label for="uploadRole">IAM Role</label>
+                <select id="uploadRole"></select>
+                <label for="uploadImage">Docker Image</label>
+                <select id="uploadImage"></select>
+                <label for="uploadVcpu">vCPU</label>
+                <select id="uploadVcpu"></select>
+                <label for="uploadMemory">Memory</label>
+                <select id="uploadMemory"></select>
+            </div>
+        </details>
         <div style="margin-top: 18px;">
             <button class="btn-submit" id="uploadSubmit">Upload</button>
             <button class="btn-cancel" id="uploadCancel">Cancel</button>
@@ -371,6 +384,26 @@
                 reader.readAsArrayBuffer(file);
             });
 
+            // Populate upload config selects
+            const uploadRole = document.getElementById("uploadRole");
+            const uploadImage = document.getElementById("uploadImage");
+            const uploadVcpu = document.getElementById("uploadVcpu");
+            const uploadMemory = document.getElementById("uploadMemory");
+            uploadRole.innerHTML = '<option value="">Use global default</option>';
+            for (const role of CONFIG.availableRoles) {
+                const opt = document.createElement("option");
+                opt.value = role;
+                opt.textContent = role.split("/").pop();
+                uploadRole.appendChild(opt);
+            }
+            uploadImage.innerHTML = '<option value="">Use global default</option>';
+            for (const img of CONFIG.availableImages) {
+                const opt = document.createElement("option");
+                opt.value = img;
+                opt.textContent = img.split("/").pop();
+                uploadImage.appendChild(opt);
+            }
+
             document.getElementById("uploadCancel").addEventListener("click", () => {
                 uploadDialog.close();
                 document.getElementById("fileInput").value = "";
@@ -383,7 +416,14 @@
                 const uploadRes = await fetch(CONFIG.apiBaseUrl + "/api/notebooks", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ filename: uploadName.value, content: uploadFileData }),
+                    body: JSON.stringify({
+                        filename: uploadName.value,
+                        content: uploadFileData,
+                        default_iam_role_arn: uploadRole.value || undefined,
+                        default_ecr_image_uri: uploadImage.value || undefined,
+                        default_vcpu: uploadVcpu.value ? parseInt(uploadVcpu.value) : undefined,
+                        default_memory: uploadMemory.value ? parseInt(uploadMemory.value) : undefined,
+                    }),
                 });
                 if (uploadRes.ok) {
                     uploadDialog.close();
@@ -498,10 +538,30 @@
             }
             populateVcpuSelect(dialogVcpu, dialogMemory);
             dialogVcpu.addEventListener("change", () => populateMemorySelect(dialogVcpu, dialogMemory));
+            populateVcpuSelect(uploadVcpu, uploadMemory);
+            uploadVcpu.addEventListener("change", () => populateMemorySelect(uploadVcpu, uploadMemory));
+
+            // Build notebook lookup for defaults
+            const notebookMap = {};
+            for (const nb of files) { notebookMap[nb.id] = nb; }
+
+            function applyDefaults(nb, roleSel, imgSel, vcpuSel, memSel) {
+                if (nb.default_iam_role_arn) roleSel.value = nb.default_iam_role_arn;
+                if (nb.default_ecr_image_uri) imgSel.value = nb.default_ecr_image_uri;
+                if (nb.default_vcpu) { vcpuSel.value = nb.default_vcpu; populateMemorySelect(vcpuSel, memSel); }
+                if (nb.default_memory) memSel.value = nb.default_memory;
+            }
 
             content.addEventListener("click", (e) => {
                 if (!e.target.classList.contains("btn-exec")) return;
                 runNotebookId = e.target.dataset.id;
+                // Reset to global defaults first
+                dialogRole.selectedIndex = 0;
+                dialogImage.selectedIndex = 0;
+                populateVcpuSelect(dialogVcpu, dialogMemory);
+                // Apply notebook defaults if any
+                const nb = notebookMap[decodeURIComponent(runNotebookId)];
+                if (nb) applyDefaults(nb, dialogRole, dialogImage, dialogVcpu, dialogMemory);
                 dialog.showModal();
             });
 
@@ -561,6 +621,13 @@
                 if (!e.target.classList.contains("btn-schedule")) return;
                 schedNotebookId = e.target.dataset.id;
                 schedCron.value = e.target.dataset.cron || "";
+                // Reset to global defaults first
+                schedRole.selectedIndex = 0;
+                schedImage.selectedIndex = 0;
+                populateVcpuSelect(schedVcpu, schedMemory);
+                // Apply notebook defaults if any
+                const nb = notebookMap[decodeURIComponent(schedNotebookId)];
+                if (nb) applyDefaults(nb, schedRole, schedImage, schedVcpu, schedMemory);
                 schedDialog.showModal();
             });
 

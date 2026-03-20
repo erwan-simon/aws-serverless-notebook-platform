@@ -71,15 +71,21 @@ def handler(event, context):
     s3.put_object(Bucket=bucket, Key=s3_key, Body=raw, ContentType="application/x-ipynb+json")
 
     # Step 2: Write to DynamoDB — rollback S3 on failure
+    item = {
+        "id": notebook_id,
+        "s3_key": s3_key,
+        "name": filename,
+        "uploaded_at": datetime.now(timezone.utc).isoformat(),
+        "owner_id": owner_id,
+        "owner_email": owner_email,
+    }
+    for key in ("default_iam_role_arn", "default_ecr_image_uri", "default_vcpu", "default_memory"):
+        val = body.get(key)
+        if val:
+            item[key] = int(val) if key in ("default_vcpu", "default_memory") else val
+
     try:
-        table.put_item(Item={
-            "id": notebook_id,
-            "s3_key": s3_key,
-            "name": filename,
-            "uploaded_at": datetime.now(timezone.utc).isoformat(),
-            "owner_id": owner_id,
-            "owner_email": owner_email,
-        })
+        table.put_item(Item=item)
     except Exception as e:
         logger.error("DynamoDB write failed, rolling back S3 object %s: %s", s3_key, e)
         try:

@@ -207,6 +207,13 @@
                 populateVcpuSelect(dialogVcpu, dialogMemory);
                 dialogVcpu.addEventListener("change", () => populateMemorySelect(dialogVcpu, dialogMemory));
 
+                function applyDefaults(nb, roleSel, imgSel, vcpuSel, memSel) {
+                    if (nb.default_iam_role_arn) roleSel.value = nb.default_iam_role_arn;
+                    if (nb.default_ecr_image_uri) imgSel.value = nb.default_ecr_image_uri;
+                    if (nb.default_vcpu) { vcpuSel.value = nb.default_vcpu; populateMemorySelect(vcpuSel, memSel); }
+                    if (nb.default_memory) memSel.value = nb.default_memory;
+                }
+
                 document.getElementById("runBtn").addEventListener("click", () => dialog.showModal());
                 document.getElementById("dialogCancel").addEventListener("click", () => dialog.close());
 
@@ -360,6 +367,10 @@
                         }
                         document.getElementById("nbMetaGrid").innerHTML = items;
                         meta.style.display = "block";
+
+                        // Pre-fill run/schedule dialogs with notebook defaults
+                        applyDefaults(nb, dialogRole, dialogImage, dialogVcpu, dialogMemory);
+                        applyDefaults(nb, schedRole, schedImage, schedVcpu, schedMemory);
                     }
                 }
             }

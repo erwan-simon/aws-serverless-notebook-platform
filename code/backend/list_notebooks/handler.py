@@ -57,6 +57,10 @@ def handler(event, context):
             "uploaded_at": nb.get("uploaded_at", ""),
             "owner": nb.get("owner_email", ""),
             "schedule_cron": nb.get("schedule_cron", ""),
+            "default_iam_role_arn": nb.get("default_iam_role_arn", ""),
+            "default_ecr_image_uri": nb.get("default_ecr_image_uri", ""),
+            "default_vcpu": int(nb.get("default_vcpu", 0)),
+            "default_memory": int(nb.get("default_memory", 0)),
             "last_execution_date": "",
             "last_execution_status": "",
         }
