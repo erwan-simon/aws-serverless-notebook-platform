@@ -54,6 +54,22 @@ resource "aws_s3_object" "executions_html" {
   etag         = filemd5("${path.root}/../code/frontend/executions.html")
 }
 
+resource "aws_s3_object" "images_html" {
+  bucket       = aws_s3_bucket.frontend.id
+  key          = "images.html"
+  source       = "${path.root}/../code/frontend/images.html"
+  content_type = "text/html"
+  etag         = filemd5("${path.root}/../code/frontend/images.html")
+}
+
+resource "aws_s3_object" "roles_html" {
+  bucket       = aws_s3_bucket.frontend.id
+  key          = "roles.html"
+  source       = "${path.root}/../code/frontend/roles.html"
+  content_type = "text/html"
+  etag         = filemd5("${path.root}/../code/frontend/roles.html")
+}
+
 resource "aws_s3_object" "auth_js" {
   bucket       = aws_s3_bucket.frontend.id
   key          = "auth.js"

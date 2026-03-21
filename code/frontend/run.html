@@ -41,20 +41,11 @@
             await window._authReady;
 
             const roleSelect = document.getElementById("role");
-            for (const role of CONFIG.availableRoles) {
-                const opt = document.createElement("option");
-                opt.value = role;
-                opt.textContent = role.split("/").pop();
-                roleSelect.appendChild(opt);
-            }
-
             const imageSelect = document.getElementById("image");
-            for (const img of CONFIG.availableImages) {
-                const opt = document.createElement("option");
-                opt.value = img;
-                opt.textContent = img.split("/").pop();
-                imageSelect.appendChild(opt);
-            }
+            await Promise.all([
+                loadRoleOptions(roleSelect),
+                loadImageOptions(imageSelect),
+            ]);
 
             // Fargate valid vCPU values (in CPU units)
             const VCPU_OPTIONS = [256, 512, 1024, 2048, 4096];

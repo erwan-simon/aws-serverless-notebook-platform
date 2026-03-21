@@ -4,7 +4,7 @@ resource "aws_cognito_user_pool" "main" {
   auto_verified_attributes = ["email"]
 
   admin_create_user_config {
-    allow_admin_create_user_only = false
+    allow_admin_create_user_only = true
   }
 
   account_recovery_setting {

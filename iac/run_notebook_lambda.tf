@@ -8,10 +8,14 @@ data "aws_iam_policy_document" "run_notebook_lambda" {
   }
   statement {
     actions = ["iam:PassRole"]
-    resources = concat(
-      [aws_iam_role.ecs_execution.arn],
-      [for role in local.available_iam_roles : role],
-    )
+    resources = [
+      "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/*",
+    ]
+    condition {
+      test     = "StringEquals"
+      variable = "iam:PassedToService"
+      values   = ["ecs-tasks.amazonaws.com"]
+    }
   }
   statement {
     actions   = ["dynamodb:GetItem"]

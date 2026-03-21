@@ -14,6 +14,8 @@
         .nb-name-link { display: inline-block; color: #7b1fa2; text-decoration: none; font-weight: 600; font-size: 15px; padding: 5px 14px; border-radius: 6px; border: 1px solid #e0d4f5; background: #faf5ff; transition: all 0.15s; }
         .nb-name-link:hover { background: #f3e5f5; border-color: #ce93d8; color: #6a1b9a; }
         a.btn { display: inline-block; padding: 5px 14px; border-radius: 4px; text-decoration: none; font-size: 13px; }
+        .nav-link { display: inline-block; padding: 6px 14px; border-radius: 6px; text-decoration: none; color: #7b1fa2; border: 1px solid #e0d4f5; background: #faf5ff; font-weight: 500; transition: all 0.15s; }
+        .nav-link:hover { background: #f3e5f5; border-color: #ce93d8; color: #6a1b9a; }
         .btn-run { background: #e8f5e9; color: #2e7d32; }
         .loading { color: #999; font-style: italic; }
         .actions-bar { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; }
@@ -67,7 +69,13 @@
     </style>
 </head>
 <body>
-    <h1>Notebooks</h1>
+    <div style="display:flex; align-items:center; justify-content:space-between;">
+        <h1 style="flex:1;">Notebooks</h1>
+        <nav style="display:flex; gap:8px; font-size:13px;">
+            <a href="images.html" class="nav-link">Docker Images</a>
+            <a href="roles.html" class="nav-link">IAM Roles</a>
+        </nav>
+    </div>
     <div class="session-bar" id="sessionCard">
         <h2>Session</h2>
         <div id="sessionStopped">
@@ -389,20 +397,18 @@
             const uploadImage = document.getElementById("uploadImage");
             const uploadVcpu = document.getElementById("uploadVcpu");
             const uploadMemory = document.getElementById("uploadMemory");
-            uploadRole.innerHTML = '<option value="">Use global default</option>';
-            for (const role of CONFIG.availableRoles) {
-                const opt = document.createElement("option");
-                opt.value = role;
-                opt.textContent = role.split("/").pop();
-                uploadRole.appendChild(opt);
+            async function loadOptionsWithDefault(selectEl, loaderFn) {
+                const placeholder = document.createElement("option");
+                placeholder.value = "";
+                placeholder.textContent = "Use global default";
+                await loaderFn(selectEl);
+                selectEl.insertBefore(placeholder, selectEl.firstChild);
+                selectEl.value = "";
             }
-            uploadImage.innerHTML = '<option value="">Use global default</option>';
-            for (const img of CONFIG.availableImages) {
-                const opt = document.createElement("option");
-                opt.value = img;
-                opt.textContent = img.split("/").pop();
-                uploadImage.appendChild(opt);
-            }
+            await Promise.all([
+                loadOptionsWithDefault(uploadRole, loadRoleOptions),
+                loadOptionsWithDefault(uploadImage, loadImageOptions),
+            ]);
 
             document.getElementById("uploadCancel").addEventListener("click", () => {
                 uploadDialog.close();
@@ -524,18 +530,7 @@
             const dialogMemory = document.getElementById("dialogMemory");
             let runNotebookId = null;
 
-            for (const role of CONFIG.availableRoles) {
-                const opt = document.createElement("option");
-                opt.value = role;
-                opt.textContent = role.split("/").pop();
-                dialogRole.appendChild(opt);
-            }
-            for (const img of CONFIG.availableImages) {
-                const opt = document.createElement("option");
-                opt.value = img;
-                opt.textContent = img.split("/").pop();
-                dialogImage.appendChild(opt);
-            }
+            await Promise.all([loadRoleOptions(dialogRole), loadImageOptions(dialogImage)]);
             populateVcpuSelect(dialogVcpu, dialogMemory);
             dialogVcpu.addEventListener("change", () => populateMemorySelect(dialogVcpu, dialogMemory));
             populateVcpuSelect(uploadVcpu, uploadMemory);
@@ -602,18 +597,7 @@
             const schedMemory = document.getElementById("schedMemory");
             let schedNotebookId = null;
 
-            for (const role of CONFIG.availableRoles) {
-                const opt = document.createElement("option");
-                opt.value = role;
-                opt.textContent = role.split("/").pop();
-                schedRole.appendChild(opt);
-            }
-            for (const img of CONFIG.availableImages) {
-                const opt = document.createElement("option");
-                opt.value = img;
-                opt.textContent = img.split("/").pop();
-                schedImage.appendChild(opt);
-            }
+            await Promise.all([loadRoleOptions(schedRole), loadImageOptions(schedImage)]);
             populateVcpuSelect(schedVcpu, schedMemory);
             schedVcpu.addEventListener("change", () => populateMemorySelect(schedVcpu, schedMemory));
 

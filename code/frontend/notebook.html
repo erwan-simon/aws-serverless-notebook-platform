@@ -173,22 +173,8 @@
                     memSel.appendChild(opt);
                 }
             }
-            function populateRoleSelect(sel) {
-                for (const role of CONFIG.availableRoles) {
-                    const opt = document.createElement("option");
-                    opt.value = role;
-                    opt.textContent = role.split("/").pop();
-                    sel.appendChild(opt);
-                }
-            }
-            function populateImageSelect(sel) {
-                for (const img of CONFIG.availableImages) {
-                    const opt = document.createElement("option");
-                    opt.value = img;
-                    opt.textContent = img.split("/").pop();
-                    sel.appendChild(opt);
-                }
-            }
+            async function populateRoleSelect(sel) { await loadRoleOptions(sel); }
+            async function populateImageSelect(sel) { await loadImageOptions(sel); }
 
             // Show Run & Schedule buttons only when viewing a notebook by id (not an execution output)
             if (id) {
@@ -202,8 +188,7 @@
                 const dialogVcpu = document.getElementById("dialogVcpu");
                 const dialogMemory = document.getElementById("dialogMemory");
 
-                populateRoleSelect(dialogRole);
-                populateImageSelect(dialogImage);
+                await Promise.all([populateRoleSelect(dialogRole), populateImageSelect(dialogImage)]);
                 populateVcpuSelect(dialogVcpu, dialogMemory);
                 dialogVcpu.addEventListener("change", () => populateMemorySelect(dialogVcpu, dialogMemory));
 
@@ -252,8 +237,7 @@
                 const schedMemory = document.getElementById("schedMemory");
                 const schedCron = document.getElementById("schedCron");
 
-                populateRoleSelect(schedRole);
-                populateImageSelect(schedImage);
+                await Promise.all([populateRoleSelect(schedRole), populateImageSelect(schedImage)]);
                 populateVcpuSelect(schedVcpu, schedMemory);
                 schedVcpu.addEventListener("change", () => populateMemorySelect(schedVcpu, schedMemory));
 
