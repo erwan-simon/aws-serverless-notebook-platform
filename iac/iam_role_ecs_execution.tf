@@ -73,9 +73,6 @@ data "aws_iam_policy_document" "ecs_execution" {
       "ecr:BatchGetImage",
       "ecr:GetDownloadUrlForLayer"
     ]
-    resources = concat(
-      [module.build_base_image.ecr_arn],
-      [for img in local.available_ecr_images : "arn:aws:ecr:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:repository/${split(":", split("/", img)[1])[0]}"],
-    )
+    resources = ["arn:aws:ecr:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:repository/*"]
   }
 }

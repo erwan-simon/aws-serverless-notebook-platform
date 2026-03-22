@@ -19,11 +19,8 @@
 <body>
     <h1>Launch Jupyter Session</h1>
 
-    <label for="role">IAM Role</label>
-    <select id="role"></select>
-
-    <label for="image">Docker Image</label>
-    <select id="image"></select>
+    <label for="config">Configuration</label>
+    <select id="config"></select>
 
     <label for="vcpu">vCPU</label>
     <select id="vcpu"></select>
@@ -40,54 +37,19 @@
         (async function () {
             await window._authReady;
 
-            const roleSelect = document.getElementById("role");
-            const imageSelect = document.getElementById("image");
-            await Promise.all([
-                loadRoleOptions(roleSelect),
-                loadImageOptions(imageSelect),
-            ]);
-
-            // Fargate valid vCPU values (in CPU units)
-            const VCPU_OPTIONS = [256, 512, 1024, 2048, 4096];
-            const MEMORY_BY_VCPU = {
-                256: [512, 1024, 2048],
-                512: [1024, 2048, 3072, 4096],
-                1024: [2048, 3072, 4096, 5120, 6144, 7168, 8192],
-                2048: [4096, 5120, 6144, 7168, 8192, 9216, 10240, 11264, 12288, 13312, 14336, 15360, 16384],
-                4096: [8192, 9216, 10240, 11264, 12288, 13312, 14336, 15360, 16384, 17408, 18432, 19456, 20480, 21504, 22528, 23552, 24576, 25600, 26624, 27648, 28672, 29696, 30720],
-            };
-            function vcpuLabel(v) { return v < 1024 ? (v / 1024).toFixed(2).replace(/0$/, "") + " vCPU" : (v / 1024) + " vCPU"; }
-            function memLabel(m) { return m >= 1024 ? (m / 1024) + " GB" : m + " MB"; }
+            const configSelect = document.getElementById("config");
+            await loadConfigurationOptions(configSelect);
 
             const vcpuSelect = document.getElementById("vcpu");
             const memorySelect = document.getElementById("memory");
 
-            function populateVcpu() {
-                vcpuSelect.innerHTML = "";
-                for (const v of VCPU_OPTIONS) {
-                    if (v > CONFIG.taskMaxVcpu) break;
-                    const opt = document.createElement("option");
-                    opt.value = v;
-                    opt.textContent = vcpuLabel(v);
-                    if (v === CONFIG.taskDefaultVcpu) opt.selected = true;
-                    vcpuSelect.appendChild(opt);
-                }
-                populateMemory();
+            function applyConfigDefaults() {
+                const cfg = getSelectedConfig(configSelect);
+                populateVcpuSelect(vcpuSelect, memorySelect, cfg.vcpu, cfg.memory);
             }
-            function populateMemory() {
-                const curVcpu = parseInt(vcpuSelect.value);
-                const allowed = (MEMORY_BY_VCPU[curVcpu] || []).filter(m => m <= CONFIG.taskMaxMemory);
-                memorySelect.innerHTML = "";
-                for (const m of allowed) {
-                    const opt = document.createElement("option");
-                    opt.value = m;
-                    opt.textContent = memLabel(m);
-                    if (m === CONFIG.taskDefaultMemory) opt.selected = true;
-                    memorySelect.appendChild(opt);
-                }
-            }
-            populateVcpu();
-            vcpuSelect.addEventListener("change", populateMemory);
+            applyConfigDefaults();
+            configSelect.addEventListener("change", applyConfigDefaults);
+            vcpuSelect.addEventListener("change", () => populateMemorySelect(vcpuSelect, memorySelect));
 
             document.getElementById("launchBtn").addEventListener("click", async () => {
                 const btn = document.getElementById("launchBtn");
@@ -98,8 +60,7 @@
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
-                        iam_role_arn: roleSelect.value,
-                        ecr_image_uri: imageSelect.value,
+                        ...getSelectedConfig(configSelect),
                         vcpu: parseInt(vcpuSelect.value),
                         memory: parseInt(memorySelect.value),
                     }),

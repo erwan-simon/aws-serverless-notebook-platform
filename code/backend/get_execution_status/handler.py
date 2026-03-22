@@ -69,6 +69,7 @@ def handler(event, context):
                 "output_s3_key": item.get("output_s3_key", ""),
                 "started_at": item.get("started_at", ""),
                 "finished_at": item.get("finished_at", ""),
+                "failure_reason": item.get("failure_reason", ""),
             }),
         }
 
@@ -77,15 +78,30 @@ def handler(event, context):
     cluster_name = os.environ["ECS_CLUSTER_NAME"]
     task_arn = item.get("task_arn", "")
 
+    failure_reason = item.get("failure_reason", "")
+
     try:
         result = ecs.describe_tasks(cluster=cluster_name, tasks=[task_arn])
         tasks = result.get("tasks", [])
         if not tasks:
             new_status = "FAILED"
+            failure_reason = failure_reason or "Task not found"
         else:
-            new_status = _map_ecs_status(tasks[0])
+            task = tasks[0]
+            new_status = _map_ecs_status(task)
+            if new_status == "FAILED" and not failure_reason:
+                reasons = []
+                if task.get("stoppedReason"):
+                    reasons.append(task["stoppedReason"])
+                for c in task.get("containers", []):
+                    if c.get("reason"):
+                        reasons.append(c["reason"])
+                    if c.get("exitCode") and c["exitCode"] != 0:
+                        reasons.append(f"exit code {c['exitCode']}")
+                failure_reason = "; ".join(reasons) if reasons else "Unknown error"
     except Exception:
         new_status = "FAILED"
+        failure_reason = failure_reason or "Failed to check task status"
 
     # Update DynamoDB if status changed
     if new_status != current_status:
@@ -96,6 +112,10 @@ def handler(event, context):
         if new_status in TERMINAL_STATUSES:
             update_expr += ", finished_at = :f"
             expr_values[":f"] = datetime.now(timezone.utc).isoformat()
+
+        if failure_reason:
+            update_expr += ", failure_reason = :r"
+            expr_values[":r"] = failure_reason
 
         table.update_item(
             Key={"id": execution_id},
@@ -113,5 +133,6 @@ def handler(event, context):
             "output_s3_key": item.get("output_s3_key", ""),
             "started_at": item.get("started_at", ""),
             "finished_at": item.get("finished_at", "") if new_status not in TERMINAL_STATUSES else datetime.now(timezone.utc).isoformat(),
+            "failure_reason": failure_reason,
         }),
     }

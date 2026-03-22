@@ -19,17 +19,17 @@ def handler(event, context):
     if event.get("headers", {}).get("x-origin-verify") != _origin_secret:
         return {"statusCode": 403, "headers": HEADERS, "body": json.dumps({"error": "Forbidden"})}
 
-    role_id = event.get("pathParameters", {}).get("id", "")
-    if not role_id:
-        return {"statusCode": 400, "headers": HEADERS, "body": json.dumps({"error": "Missing role id"})}
+    config_id = event.get("pathParameters", {}).get("id", "")
+    if not config_id:
+        return {"statusCode": 400, "headers": HEADERS, "body": json.dumps({"error": "Missing configuration id"})}
 
     dynamodb = boto3.resource("dynamodb")
-    table = dynamodb.Table(os.environ["ROLES_TABLE"])
+    table = dynamodb.Table(os.environ["CONFIGURATIONS_TABLE"])
 
-    item = table.get_item(Key={"id": role_id}).get("Item")
+    item = table.get_item(Key={"id": config_id}).get("Item")
     if not item:
-        return {"statusCode": 404, "headers": HEADERS, "body": json.dumps({"error": "Role not found"})}
+        return {"statusCode": 404, "headers": HEADERS, "body": json.dumps({"error": "Configuration not found"})}
 
-    table.delete_item(Key={"id": role_id})
+    table.delete_item(Key={"id": config_id})
 
-    return {"statusCode": 200, "headers": HEADERS, "body": json.dumps({"message": "Role deleted"})}
+    return {"statusCode": 200, "headers": HEADERS, "body": json.dumps({"message": "Configuration deleted"})}

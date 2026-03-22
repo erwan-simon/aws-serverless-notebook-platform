@@ -1,5 +1,6 @@
 import json
 import os
+from decimal import Decimal
 
 import boto3
 
@@ -20,7 +21,7 @@ def handler(event, context):
         return {"statusCode": 403, "headers": HEADERS, "body": json.dumps({"error": "Forbidden"})}
 
     dynamodb = boto3.resource("dynamodb")
-    table = dynamodb.Table(os.environ["ROLES_TABLE"])
+    table = dynamodb.Table(os.environ["CONFIGURATIONS_TABLE"])
 
     items = []
     response = table.scan()
@@ -31,4 +32,4 @@ def handler(event, context):
 
     items.sort(key=lambda x: x.get("created_at", ""), reverse=True)
 
-    return {"statusCode": 200, "headers": HEADERS, "body": json.dumps(items)}
+    return {"statusCode": 200, "headers": HEADERS, "body": json.dumps(items, default=lambda o: int(o) if isinstance(o, Decimal) else str(o))}

@@ -4,12 +4,14 @@ locals {
   domain_name         = "jupyter_sandbox"
   notebooks_s3_prefix = "notebooks/"
 
-  available_iam_roles = [
-    aws_iam_role.ecs_execution.arn,
-  ]
-
-  available_ecr_images = [
-    "${module.build_base_image.ecr_url}:${local.image_tag}",
+  available_configurations = [
+    {
+      name          = "Default"
+      ecr_image_uri = "${module.build_base_image.ecr_url}:${local.image_tag}"
+      iam_role_arn  = aws_iam_role.ecs_execution.arn
+      vcpu          = local.task_default_vcpu
+      memory        = local.task_default_memory
+    },
   ]
 
   session_idle_timeout_minutes = 60
@@ -18,4 +20,7 @@ locals {
   task_default_memory = 512
   task_max_vcpu       = 4096
   task_max_memory     = 16384
+
+  technical_owner_id     = "system"
+  validation_notebook_id = "validation_hello_world"
 }

@@ -28,8 +28,9 @@ module "list_notebooks" {
   origin_verify_secret_ssm_name = aws_ssm_parameter.cf_origin_secret.name
   iam_policy_json               = data.aws_iam_policy_document.list_notebooks_lambda.json
   environment_variables = {
-    NOTEBOOKS_TABLE  = aws_dynamodb_table.notebooks.name
-    EXECUTIONS_TABLE = aws_dynamodb_table.executions.name
+    NOTEBOOKS_TABLE    = aws_dynamodb_table.notebooks.name
+    EXECUTIONS_TABLE   = aws_dynamodb_table.executions.name
+    TECHNICAL_OWNER_ID = local.technical_owner_id
   }
   tags_map = {
     Appli          = var.project_name

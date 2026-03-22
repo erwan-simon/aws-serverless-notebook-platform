@@ -54,20 +54,12 @@ resource "aws_s3_object" "executions_html" {
   etag         = filemd5("${path.root}/../code/frontend/executions.html")
 }
 
-resource "aws_s3_object" "images_html" {
+resource "aws_s3_object" "configurations_html" {
   bucket       = aws_s3_bucket.frontend.id
-  key          = "images.html"
-  source       = "${path.root}/../code/frontend/images.html"
+  key          = "configurations.html"
+  source       = "${path.root}/../code/frontend/configurations.html"
   content_type = "text/html"
-  etag         = filemd5("${path.root}/../code/frontend/images.html")
-}
-
-resource "aws_s3_object" "roles_html" {
-  bucket       = aws_s3_bucket.frontend.id
-  key          = "roles.html"
-  source       = "${path.root}/../code/frontend/roles.html"
-  content_type = "text/html"
-  etag         = filemd5("${path.root}/../code/frontend/roles.html")
+  etag         = filemd5("${path.root}/../code/frontend/configurations.html")
 }
 
 resource "aws_s3_object" "auth_js" {
@@ -83,16 +75,15 @@ resource "aws_s3_object" "config_js" {
   key          = "config.js"
   content_type = "application/javascript"
   content = templatefile("${path.root}/../code/frontend/config.js.tpl", {
-    api_base_url                 = ""
-    available_roles_json         = jsonencode(local.available_iam_roles)
-    available_images_json        = jsonencode(local.available_ecr_images)
-    cognito_domain               = "${aws_cognito_user_pool_domain.main.domain}.auth.${data.aws_region.current.name}.amazoncognito.com"
-    cognito_client_id            = aws_cognito_user_pool_client.main.id
-    cognito_redirect_uri         = "https://${aws_cloudfront_distribution.main.domain_name}"
-    task_default_vcpu            = local.task_default_vcpu
-    task_default_memory          = local.task_default_memory
-    task_max_vcpu                = local.task_max_vcpu
-    task_max_memory              = local.task_max_memory
-    session_idle_timeout_minutes = local.session_idle_timeout_minutes
+    api_base_url                  = ""
+    available_configurations_json = jsonencode(local.available_configurations)
+    cognito_domain                = "${aws_cognito_user_pool_domain.main.domain}.auth.${data.aws_region.current.name}.amazoncognito.com"
+    cognito_client_id             = aws_cognito_user_pool_client.main.id
+    cognito_redirect_uri          = "https://${aws_cloudfront_distribution.main.domain_name}"
+    task_default_vcpu             = local.task_default_vcpu
+    task_default_memory           = local.task_default_memory
+    task_max_vcpu                 = local.task_max_vcpu
+    task_max_memory               = local.task_max_memory
+    session_idle_timeout_minutes  = local.session_idle_timeout_minutes
   })
 }

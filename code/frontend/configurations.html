@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Configurations</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; max-width: 900px; margin: 40px auto; padding: 0 20px; color: #333; }
+        h1 { border-bottom: 2px solid #eee; padding-bottom: 10px; }
+        .btn-back { display: inline-block; padding: 5px 14px; border-radius: 4px; text-decoration: none; font-size: 13px; background: #eee; color: #333; }
+        .btn-add { display: inline-block; padding: 7px 18px; background: #fff; color: #444; border: 1px solid #ccc; border-radius: 4px; cursor: pointer; font-weight: 500; font-size: 14px; transition: all 0.15s; }
+        .btn-add:hover { background: #f5f5f5; border-color: #999; color: #222; }
+        .btn-delete { background: #ffebee; color: #c62828; cursor: pointer; border: none; font-size: 13px; padding: 5px 14px; border-radius: 4px; }
+        .btn-delete:hover { background: #ffcdd2; }
+        .loading { color: #999; font-style: italic; }
+        .empty { color: #999; font-style: italic; padding: 20px 0; }
+        .header-bar { display: flex; align-items: center; justify-content: space-between; }
+        .status-badge { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; }
+        .status-validating { background: #fff3e0; color: #e65100; border: 1px solid #ffcc80; }
+        .status-validated { background: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7; }
+        .status-failed { background: #ffebee; color: #c62828; border: 1px solid #ef9a9a; }
+        .ext-link { color: #7b1fa2; text-decoration: none; font-weight: 500; }
+        .ext-link:hover { text-decoration: underline; }
+        .cfg-list { display: flex; flex-direction: column; gap: 12px; margin-top: 20px; }
+        .cfg-card { border: 1px solid #e0e0e0; border-radius: 8px; padding: 16px 20px; background: #fafafa; }
+        .cfg-card:hover { border-color: #ccc; }
+        .cfg-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+        .cfg-name { font-size: 16px; font-weight: 600; }
+        .cfg-desc { font-size: 13px; color: #888; margin-top: 2px; }
+        .cfg-details { display: flex; flex-wrap: wrap; gap: 6px 24px; margin-top: 10px; font-size: 13px; }
+        .cfg-detail { display: flex; align-items: center; gap: 5px; }
+        .cfg-detail-label { color: #999; font-weight: 500; }
+        .cfg-detail-value { color: #555; font-family: monospace; font-size: 12px; }
+        .cfg-footer { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; font-size: 12px; color: #aaa; }
+        dialog { border: 1px solid #ddd; border-radius: 8px; padding: 24px; max-width: 500px; }
+        dialog::backdrop { background: rgba(0,0,0,0.3); }
+        dialog label { display: block; margin-top: 14px; font-weight: 600; font-size: 14px; }
+        dialog input[type="text"], dialog select { width: 100%; padding: 8px; margin-top: 6px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; box-sizing: border-box; }
+        dialog button { margin-top: 18px; padding: 8px 20px; border: none; border-radius: 4px; font-size: 14px; cursor: pointer; }
+        dialog .btn-submit { background: #7b1fa2; color: #fff; }
+        dialog .btn-cancel { background: #eee; color: #333; margin-left: 8px; }
+    </style>
+</head>
+<body>
+    <div style="margin-bottom: 16px;"><a class="btn-back" href="index.html">Home</a></div>
+    <div class="header-bar">
+        <h1>Configurations</h1>
+        <button class="btn-add" id="addBtn">+ Add Configuration</button>
+    </div>
+    <div id="content"><p class="loading">Loading configurations...</p></div>
+
+    <dialog id="addDialog">
+        <h3>Add Configuration</h3>
+        <label for="inputName">Name</label>
+        <input type="text" id="inputName" placeholder="My custom config">
+        <label for="inputImage">Docker Image URI</label>
+        <input type="text" id="inputImage" placeholder="123456.dkr.ecr.eu-west-1.amazonaws.com/repo:tag">
+        <label for="inputRole">IAM Role ARN</label>
+        <input type="text" id="inputRole" placeholder="arn:aws:iam::123456789:role/MyRole">
+        <label for="inputVcpu">vCPU</label>
+        <select id="inputVcpu"></select>
+        <label for="inputMemory">Memory</label>
+        <select id="inputMemory"></select>
+        <label for="inputDesc">Description <span style="font-weight:400; color:#999;">(optional)</span></label>
+        <input type="text" id="inputDesc" placeholder="">
+        <div>
+            <button class="btn-submit" id="submitBtn">Add</button>
+            <button class="btn-cancel" id="cancelBtn">Cancel</button>
+        </div>
+    </dialog>
+
+    <script src="config.js"></script>
+    <script src="auth.js"></script>
+    <script>
+        (async function () {
+            await window._authReady;
+
+            const content = document.getElementById("content");
+            const dialog = document.getElementById("addDialog");
+
+            const inputVcpu = document.getElementById("inputVcpu");
+            const inputMemory = document.getElementById("inputMemory");
+            populateVcpuSelect(inputVcpu, inputMemory);
+            inputVcpu.addEventListener("change", () => populateMemorySelect(inputVcpu, inputMemory));
+
+            function ecrConsoleUrl(uri) {
+                const match = uri.match(/^(\d+)\.dkr\.ecr\.([^.]+)\.amazonaws\.com\/(.+?)(?::.*)?$/);
+                if (!match) return null;
+                const [, accountId, region, repo] = match;
+                return "https://" + region + ".console.aws.amazon.com/ecr/repositories/private/" + accountId + "/" + repo;
+            }
+
+            function iamConsoleUrl(arn) {
+                const match = arn.match(/^arn:aws:iam::\d+:role\/(.+)$/);
+                if (!match) return null;
+                return "https://us-east-1.console.aws.amazon.com/iam/home#/roles/details/" + encodeURIComponent(match[1]);
+            }
+
+            function validationBadge(execId) {
+                if (!execId) return "";
+                return '<span class="status-badge status-validating" data-exec-id="' + execId + '">Validating</span>';
+            }
+
+            async function checkValidations() {
+                const badges = document.querySelectorAll("[data-exec-id]");
+                for (const badge of badges) {
+                    const execId = badge.dataset.execId;
+                    try {
+                        const res = await fetch(CONFIG.apiBaseUrl + "/api/executions/" + encodeURIComponent(execId) + "/status");
+                        if (!res.ok) continue;
+                        const data = await res.json();
+                        if (data.status === "SUCCEEDED") {
+                            badge.textContent = "Validated";
+                            badge.className = "status-badge status-validated";
+                            badge.title = "";
+                        } else if (data.status === "FAILED" || data.status === "STOPPED") {
+                            badge.textContent = "Failed";
+                            badge.className = "status-badge status-failed";
+                            badge.title = data.failure_reason || "Validation failed";
+                        }
+                    } catch (e) { /* ignore */ }
+                }
+            }
+
+            function linkOrText(url, label) {
+                return url
+                    ? '<a class="ext-link" href="' + url + '" target="_blank">' + label + ' &#8599;</a>'
+                    : '<span>' + label + '</span>';
+            }
+
+            async function loadConfigurations() {
+                const res = await fetch(CONFIG.apiBaseUrl + "/api/configurations");
+                if (!res.ok) {
+                    content.innerHTML = "<p style='color:red'>Error " + res.status + "</p>";
+                    return;
+                }
+                const configs = await res.json();
+                if (!configs.length) {
+                    content.innerHTML = '<p class="empty">No custom configurations added yet.</p>';
+                    return;
+                }
+                let html = '<div class="cfg-list">';
+                for (const cfg of configs) {
+                    const imageLabel = (cfg.ecr_image_uri || "").split("/").pop();
+                    const roleLabel = (cfg.iam_role_arn || "").split("/").pop();
+                    const ecrUrl = ecrConsoleUrl(cfg.ecr_image_uri || "");
+                    const iamUrl = iamConsoleUrl(cfg.iam_role_arn || "");
+
+                    html += '<div class="cfg-card">';
+                    html += '<div class="cfg-header">';
+                    html += '<div><span class="cfg-name">' + (cfg.name || "") + '</span>';
+                    if (cfg.description) html += '<div class="cfg-desc">' + cfg.description + '</div>';
+                    html += '</div>';
+                    html += '<div style="display:flex;align-items:center;gap:8px;">' + validationBadge(cfg.validation_execution_id) + '<button class="btn-delete" data-id="' + cfg.id + '">Delete</button></div>';
+                    html += '</div>';
+                    html += '<div class="cfg-details">';
+                    html += '<div class="cfg-detail"><span class="cfg-detail-label">Image</span> <span class="cfg-detail-value">' + linkOrText(ecrUrl, imageLabel) + '</span></div>';
+                    html += '<div class="cfg-detail"><span class="cfg-detail-label">Role</span> <span class="cfg-detail-value">' + linkOrText(iamUrl, roleLabel) + '</span></div>';
+                    html += '<div class="cfg-detail"><span class="cfg-detail-label">vCPU</span> <span class="cfg-detail-value">' + vcpuLabel(cfg.vcpu) + '</span></div>';
+                    html += '<div class="cfg-detail"><span class="cfg-detail-label">Memory</span> <span class="cfg-detail-value">' + memLabel(cfg.memory) + '</span></div>';
+                    html += '</div>';
+                    if (cfg.created_by) {
+                        html += '<div class="cfg-footer">' + cfg.created_by + '</div>';
+                    }
+                    html += '</div>';
+                }
+                html += '</div>';
+                content.innerHTML = html;
+                checkValidations();
+            }
+
+            await loadConfigurations();
+
+            document.getElementById("addBtn").addEventListener("click", () => {
+                document.getElementById("inputName").value = "";
+                document.getElementById("inputImage").value = "";
+                document.getElementById("inputRole").value = "";
+                document.getElementById("inputDesc").value = "";
+                populateVcpuSelect(inputVcpu, inputMemory);
+                dialog.showModal();
+            });
+
+            document.getElementById("cancelBtn").addEventListener("click", () => dialog.close());
+
+            document.getElementById("submitBtn").addEventListener("click", async () => {
+                const name = document.getElementById("inputName").value.trim();
+                const image = document.getElementById("inputImage").value.trim();
+                const role = document.getElementById("inputRole").value.trim();
+                const desc = document.getElementById("inputDesc").value.trim();
+                if (!name || !image || !role) { alert("Name, Image URI and Role ARN are required"); return; }
+                const btn = document.getElementById("submitBtn");
+                btn.disabled = true;
+                btn.textContent = "Adding...";
+                const body = { name, ecr_image_uri: image, iam_role_arn: role, vcpu: parseInt(inputVcpu.value), memory: parseInt(inputMemory.value) };
+                if (desc) body.description = desc;
+                const res = await fetch(CONFIG.apiBaseUrl + "/api/configurations", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(body),
+                });
+                if (res.ok) {
+                    dialog.close();
+                    await loadConfigurations();
+                } else {
+                    const err = await res.json().catch(() => ({}));
+                    alert("Failed: " + (err.error || res.status));
+                }
+                btn.disabled = false;
+                btn.textContent = "Add";
+            });
+
+            content.addEventListener("click", async (e) => {
+                if (!e.target.classList.contains("btn-delete")) return;
+                if (!confirm("Delete this configuration?")) return;
+                const id = e.target.dataset.id;
+                e.target.disabled = true;
+                e.target.textContent = "Deleting...";
+                const res = await fetch(CONFIG.apiBaseUrl + "/api/configurations/" + encodeURIComponent(id), { method: "DELETE" });
+                if (res.ok) {
+                    await loadConfigurations();
+                } else {
+                    const err = await res.json().catch(() => ({}));
+                    alert("Delete failed: " + (err.error || res.status));
+                    e.target.disabled = false;
+                    e.target.textContent = "Delete";
+                }
+            });
+        })();
+    </script>
+</body>
+</html>

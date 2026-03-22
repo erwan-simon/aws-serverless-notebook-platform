@@ -1,7 +1,7 @@
-data "aws_iam_policy_document" "delete_role_lambda" {
+data "aws_iam_policy_document" "list_configurations_lambda" {
   statement {
-    actions   = ["dynamodb:GetItem", "dynamodb:DeleteItem"]
-    resources = [aws_dynamodb_table.roles.arn]
+    actions   = ["dynamodb:Scan"]
+    resources = [aws_dynamodb_table.configurations.arn]
   }
   statement {
     actions = [
@@ -10,25 +10,25 @@ data "aws_iam_policy_document" "delete_role_lambda" {
       "logs:PutLogEvents",
     ]
     resources = [
-      module.delete_role.log_group_arn,
-      "${module.delete_role.log_group_arn}:*",
+      module.list_configurations.log_group_arn,
+      "${module.list_configurations.log_group_arn}:*",
     ]
   }
 }
 
-module "delete_role" {
+module "list_configurations" {
   source                        = "./lambda_backend_module/"
   environment_name              = local.environment_name
-  lambda_name                   = "delete_role"
-  code_path                     = "${path.root}/../code/backend/delete_role/"
+  lambda_name                   = "list_configurations"
+  code_path                     = "${path.root}/../code/backend/list_configurations/"
   api_id                        = aws_apigatewayv2_api.main.id
   api_execution_arn             = aws_apigatewayv2_api.main.execution_arn
   authorizer_id                 = aws_apigatewayv2_authorizer.cognito.id
-  route_key                     = "DELETE /api/roles/{id}"
+  route_key                     = "GET /api/configurations"
   origin_verify_secret_ssm_name = aws_ssm_parameter.cf_origin_secret.name
-  iam_policy_json               = data.aws_iam_policy_document.delete_role_lambda.json
+  iam_policy_json               = data.aws_iam_policy_document.list_configurations_lambda.json
   environment_variables = {
-    ROLES_TABLE = aws_dynamodb_table.roles.name
+    CONFIGURATIONS_TABLE = aws_dynamodb_table.configurations.name
   }
   tags_map = {
     Appli          = var.project_name

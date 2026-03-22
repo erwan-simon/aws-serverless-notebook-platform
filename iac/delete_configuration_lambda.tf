@@ -1,7 +1,7 @@
-data "aws_iam_policy_document" "delete_image_lambda" {
+data "aws_iam_policy_document" "delete_configuration_lambda" {
   statement {
     actions   = ["dynamodb:GetItem", "dynamodb:DeleteItem"]
-    resources = [aws_dynamodb_table.images.arn]
+    resources = [aws_dynamodb_table.configurations.arn]
   }
   statement {
     actions = [
@@ -10,25 +10,25 @@ data "aws_iam_policy_document" "delete_image_lambda" {
       "logs:PutLogEvents",
     ]
     resources = [
-      module.delete_image.log_group_arn,
-      "${module.delete_image.log_group_arn}:*",
+      module.delete_configuration.log_group_arn,
+      "${module.delete_configuration.log_group_arn}:*",
     ]
   }
 }
 
-module "delete_image" {
+module "delete_configuration" {
   source                        = "./lambda_backend_module/"
   environment_name              = local.environment_name
-  lambda_name                   = "delete_image"
-  code_path                     = "${path.root}/../code/backend/delete_image/"
+  lambda_name                   = "delete_configuration"
+  code_path                     = "${path.root}/../code/backend/delete_configuration/"
   api_id                        = aws_apigatewayv2_api.main.id
   api_execution_arn             = aws_apigatewayv2_api.main.execution_arn
   authorizer_id                 = aws_apigatewayv2_authorizer.cognito.id
-  route_key                     = "DELETE /api/images/{id}"
+  route_key                     = "DELETE /api/configurations/{id}"
   origin_verify_secret_ssm_name = aws_ssm_parameter.cf_origin_secret.name
-  iam_policy_json               = data.aws_iam_policy_document.delete_image_lambda.json
+  iam_policy_json               = data.aws_iam_policy_document.delete_configuration_lambda.json
   environment_variables = {
-    IMAGES_TABLE = aws_dynamodb_table.images.name
+    CONFIGURATIONS_TABLE = aws_dynamodb_table.configurations.name
   }
   tags_map = {
     Appli          = var.project_name

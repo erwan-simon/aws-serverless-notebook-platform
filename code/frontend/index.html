@@ -72,8 +72,7 @@
     <div style="display:flex; align-items:center; justify-content:space-between;">
         <h1 style="flex:1;">Notebooks</h1>
         <nav style="display:flex; gap:8px; font-size:13px;">
-            <a href="images.html" class="nav-link">Docker Images</a>
-            <a href="roles.html" class="nav-link">IAM Roles</a>
+            <a href="configurations.html" class="nav-link">Configurations</a>
         </nav>
     </div>
     <div class="session-bar" id="sessionCard">
@@ -104,10 +103,8 @@
         <details style="margin-top: 14px; font-size: 13px;">
             <summary style="cursor: pointer; font-weight: 600; color: #555;">Default configuration <span style="font-weight: 400; color: #999;">(optional)</span></summary>
             <div style="margin-top: 10px;">
-                <label for="uploadRole">IAM Role</label>
-                <select id="uploadRole"></select>
-                <label for="uploadImage">Docker Image</label>
-                <select id="uploadImage"></select>
+                <label for="uploadConfig">Configuration</label>
+                <select id="uploadConfig"></select>
                 <label for="uploadVcpu">vCPU</label>
                 <select id="uploadVcpu"></select>
                 <label for="uploadMemory">Memory</label>
@@ -122,10 +119,8 @@
 
     <dialog id="runDialog">
         <h3>Run Notebook</h3>
-        <label for="dialogRole">IAM Role</label>
-        <select id="dialogRole"></select>
-        <label for="dialogImage">Docker Image</label>
-        <select id="dialogImage"></select>
+        <label for="dialogConfig">Configuration</label>
+        <select id="dialogConfig"></select>
         <label for="dialogVcpu">vCPU</label>
         <select id="dialogVcpu"></select>
         <label for="dialogMemory">Memory</label>
@@ -140,10 +135,8 @@
         <h3>Schedule Notebook</h3>
         <label for="schedCron">Cron Expression <a href="https://docs.aws.amazon.com/scheduler/latest/UserGuide/schedule-types.html" target="_blank" style="font-weight:400; font-size:12px; color:#1565c0; text-decoration:none;">syntax reference &#8599;</a></label>
         <input type="text" id="schedCron" placeholder="cron(0 9 * * ? *)">
-        <label for="schedRole">IAM Role</label>
-        <select id="schedRole"></select>
-        <label for="schedImage">Docker Image</label>
-        <select id="schedImage"></select>
+        <label for="schedConfig">Configuration</label>
+        <select id="schedConfig"></select>
         <label for="schedVcpu">vCPU</label>
         <select id="schedVcpu"></select>
         <label for="schedMemory">Memory</label>
@@ -160,8 +153,6 @@
             await window._authReady;
 
             // Session card
-            function vcpuLabel(v) { v = parseInt(v); return v < 1024 ? (v / 1024).toFixed(2).replace(/0$/, "") + " vCPU" : (v / 1024) + " vCPU"; }
-            function memLabel(m) { m = parseInt(m); return m >= 1024 ? (m / 1024) + " GB" : m + " MB"; }
             function uptimeStr(iso) {
                 const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
                 if (diff < 60) return diff + "s";
@@ -393,22 +384,18 @@
             });
 
             // Populate upload config selects
-            const uploadRole = document.getElementById("uploadRole");
-            const uploadImage = document.getElementById("uploadImage");
+            const uploadConfig = document.getElementById("uploadConfig");
             const uploadVcpu = document.getElementById("uploadVcpu");
             const uploadMemory = document.getElementById("uploadMemory");
-            async function loadOptionsWithDefault(selectEl, loaderFn) {
+            async function loadConfigWithDefault(selectEl) {
+                await loadConfigurationOptions(selectEl);
                 const placeholder = document.createElement("option");
                 placeholder.value = "";
                 placeholder.textContent = "Use global default";
-                await loaderFn(selectEl);
                 selectEl.insertBefore(placeholder, selectEl.firstChild);
                 selectEl.value = "";
             }
-            await Promise.all([
-                loadOptionsWithDefault(uploadRole, loadRoleOptions),
-                loadOptionsWithDefault(uploadImage, loadImageOptions),
-            ]);
+            await loadConfigWithDefault(uploadConfig);
 
             document.getElementById("uploadCancel").addEventListener("click", () => {
                 uploadDialog.close();
@@ -425,8 +412,7 @@
                     body: JSON.stringify({
                         filename: uploadName.value,
                         content: uploadFileData,
-                        default_iam_role_arn: uploadRole.value || undefined,
-                        default_ecr_image_uri: uploadImage.value || undefined,
+                        ...(uploadConfig.value ? { default_iam_role_arn: getSelectedConfig(uploadConfig).iam_role_arn, default_ecr_image_uri: getSelectedConfig(uploadConfig).ecr_image_uri } : {}),
                         default_vcpu: uploadVcpu.value ? parseInt(uploadVcpu.value) : undefined,
                         default_memory: uploadMemory.value ? parseInt(uploadMemory.value) : undefined,
                     }),
@@ -486,52 +472,20 @@
                 }
             });
 
-            // Fargate vCPU/memory helpers
-            const VCPU_OPTIONS = [256, 512, 1024, 2048, 4096];
-            const MEMORY_BY_VCPU = {
-                256: [512, 1024, 2048],
-                512: [1024, 2048, 3072, 4096],
-                1024: [2048, 3072, 4096, 5120, 6144, 7168, 8192],
-                2048: [4096, 5120, 6144, 7168, 8192, 9216, 10240, 11264, 12288, 13312, 14336, 15360, 16384],
-                4096: [8192, 9216, 10240, 11264, 12288, 13312, 14336, 15360, 16384, 17408, 18432, 19456, 20480, 21504, 22528, 23552, 24576, 25600, 26624, 27648, 28672, 29696, 30720],
-            };
-            function vcpuLabel(v) { return v < 1024 ? (v / 1024).toFixed(2).replace(/0$/, "") + " vCPU" : (v / 1024) + " vCPU"; }
-            function memLabel(m) { return m >= 1024 ? (m / 1024) + " GB" : m + " MB"; }
-            function populateVcpuSelect(sel, memSel) {
-                sel.innerHTML = "";
-                for (const v of VCPU_OPTIONS) {
-                    if (v > CONFIG.taskMaxVcpu) break;
-                    const opt = document.createElement("option");
-                    opt.value = v;
-                    opt.textContent = vcpuLabel(v);
-                    if (v === CONFIG.taskDefaultVcpu) opt.selected = true;
-                    sel.appendChild(opt);
-                }
-                populateMemorySelect(sel, memSel);
-            }
-            function populateMemorySelect(vcpuSel, memSel) {
-                const curVcpu = parseInt(vcpuSel.value);
-                const allowed = (MEMORY_BY_VCPU[curVcpu] || []).filter(m => m <= CONFIG.taskMaxMemory);
-                memSel.innerHTML = "";
-                for (const m of allowed) {
-                    const opt = document.createElement("option");
-                    opt.value = m;
-                    opt.textContent = memLabel(m);
-                    if (m === CONFIG.taskDefaultMemory) opt.selected = true;
-                    memSel.appendChild(opt);
-                }
-            }
-
             // Run dialog
             const dialog = document.getElementById("runDialog");
-            const dialogRole = document.getElementById("dialogRole");
-            const dialogImage = document.getElementById("dialogImage");
+            const dialogConfig = document.getElementById("dialogConfig");
             const dialogVcpu = document.getElementById("dialogVcpu");
             const dialogMemory = document.getElementById("dialogMemory");
             let runNotebookId = null;
 
-            await Promise.all([loadRoleOptions(dialogRole), loadImageOptions(dialogImage)]);
-            populateVcpuSelect(dialogVcpu, dialogMemory);
+            await loadConfigurationOptions(dialogConfig);
+            function applyDialogConfigDefaults() {
+                const cfg = getSelectedConfig(dialogConfig);
+                populateVcpuSelect(dialogVcpu, dialogMemory, cfg.vcpu, cfg.memory);
+            }
+            applyDialogConfigDefaults();
+            dialogConfig.addEventListener("change", applyDialogConfigDefaults);
             dialogVcpu.addEventListener("change", () => populateMemorySelect(dialogVcpu, dialogMemory));
             populateVcpuSelect(uploadVcpu, uploadMemory);
             uploadVcpu.addEventListener("change", () => populateMemorySelect(uploadVcpu, uploadMemory));
@@ -540,9 +494,11 @@
             const notebookMap = {};
             for (const nb of files) { notebookMap[nb.id] = nb; }
 
-            function applyDefaults(nb, roleSel, imgSel, vcpuSel, memSel) {
-                if (nb.default_iam_role_arn) roleSel.value = nb.default_iam_role_arn;
-                if (nb.default_ecr_image_uri) imgSel.value = nb.default_ecr_image_uri;
+            function applyDefaults(nb, cfgSel, vcpuSel, memSel) {
+                if (nb.default_iam_role_arn && nb.default_ecr_image_uri) {
+                    const key = nb.default_ecr_image_uri + "||" + nb.default_iam_role_arn;
+                    cfgSel.value = key;
+                }
                 if (nb.default_vcpu) { vcpuSel.value = nb.default_vcpu; populateMemorySelect(vcpuSel, memSel); }
                 if (nb.default_memory) memSel.value = nb.default_memory;
             }
@@ -551,12 +507,11 @@
                 if (!e.target.classList.contains("btn-exec")) return;
                 runNotebookId = e.target.dataset.id;
                 // Reset to global defaults first
-                dialogRole.selectedIndex = 0;
-                dialogImage.selectedIndex = 0;
-                populateVcpuSelect(dialogVcpu, dialogMemory);
+                dialogConfig.selectedIndex = 0;
+                applyDialogConfigDefaults();
                 // Apply notebook defaults if any
                 const nb = notebookMap[decodeURIComponent(runNotebookId)];
-                if (nb) applyDefaults(nb, dialogRole, dialogImage, dialogVcpu, dialogMemory);
+                if (nb) applyDefaults(nb, dialogConfig, dialogVcpu, dialogMemory);
                 dialog.showModal();
             });
 
@@ -571,8 +526,7 @@
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
                         notebook_id: runNotebookId,
-                        iam_role_arn: dialogRole.value,
-                        ecr_image_uri: dialogImage.value,
+                        ...getSelectedConfig(dialogConfig),
                         vcpu: parseInt(dialogVcpu.value),
                         memory: parseInt(dialogMemory.value),
                     }),
@@ -590,15 +544,19 @@
             });
             // Schedule dialog
             const schedDialog = document.getElementById("scheduleDialog");
-            const schedRole = document.getElementById("schedRole");
-            const schedImage = document.getElementById("schedImage");
+            const schedConfig = document.getElementById("schedConfig");
             const schedCron = document.getElementById("schedCron");
             const schedVcpu = document.getElementById("schedVcpu");
             const schedMemory = document.getElementById("schedMemory");
             let schedNotebookId = null;
 
-            await Promise.all([loadRoleOptions(schedRole), loadImageOptions(schedImage)]);
-            populateVcpuSelect(schedVcpu, schedMemory);
+            await loadConfigurationOptions(schedConfig);
+            function applySchedConfigDefaults() {
+                const cfg = getSelectedConfig(schedConfig);
+                populateVcpuSelect(schedVcpu, schedMemory, cfg.vcpu, cfg.memory);
+            }
+            applySchedConfigDefaults();
+            schedConfig.addEventListener("change", applySchedConfigDefaults);
             schedVcpu.addEventListener("change", () => populateMemorySelect(schedVcpu, schedMemory));
 
             content.addEventListener("click", (e) => {
@@ -606,12 +564,11 @@
                 schedNotebookId = e.target.dataset.id;
                 schedCron.value = e.target.dataset.cron || "";
                 // Reset to global defaults first
-                schedRole.selectedIndex = 0;
-                schedImage.selectedIndex = 0;
-                populateVcpuSelect(schedVcpu, schedMemory);
+                schedConfig.selectedIndex = 0;
+                applySchedConfigDefaults();
                 // Apply notebook defaults if any
                 const nb = notebookMap[decodeURIComponent(schedNotebookId)];
-                if (nb) applyDefaults(nb, schedRole, schedImage, schedVcpu, schedMemory);
+                if (nb) applyDefaults(nb, schedConfig, schedVcpu, schedMemory);
                 schedDialog.showModal();
             });
 
@@ -626,8 +583,7 @@
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
                         cron_expression: schedCron.value,
-                        iam_role_arn: schedRole.value,
-                        ecr_image_uri: schedImage.value,
+                        ...getSelectedConfig(schedConfig),
                         vcpu: parseInt(schedVcpu.value),
                         memory: parseInt(schedMemory.value),
                     }),

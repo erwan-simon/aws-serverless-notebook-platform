@@ -49,6 +49,10 @@ def handler(event, context):
 
     notebooks.sort(key=lambda n: n.get("uploaded_at", ""), reverse=True)
 
+    technical_owner_id = os.environ.get("TECHNICAL_OWNER_ID", "")
+    if technical_owner_id:
+        notebooks = [nb for nb in notebooks if nb.get("owner_id") != technical_owner_id]
+
     result = []
     for nb in notebooks:
         entry = {
