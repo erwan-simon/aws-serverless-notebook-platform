@@ -1,7 +1,7 @@
 FROM --platform=linux/amd64 jupyter/base-notebook:x86_64-ubuntu-22.04
 
 USER root
-RUN apt-get update && apt-get install -y awscli && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y awscli curl && rm -rf /var/lib/apt/lists/*
 RUN pip install --no-cache-dir papermill uv jupyterlab-lsp jedi-language-server
 
 COPY pyproject.toml /opt/default-venv-config/pyproject.toml

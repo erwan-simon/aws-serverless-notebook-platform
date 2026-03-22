@@ -16,8 +16,8 @@ locals {
 
   session_idle_timeout_minutes = 60
 
-  task_default_vcpu   = 256
-  task_default_memory = 512
+  task_default_vcpu   = 512
+  task_default_memory = 1024
   task_max_vcpu       = 4096
   task_max_memory     = 16384
 
