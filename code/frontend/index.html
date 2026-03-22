@@ -534,7 +534,7 @@
                 if (execRes.ok) {
                     const data = await execRes.json();
                     dialog.close();
-                    window.location.href = "execution_status.html?execution_id=" + encodeURIComponent(data.execution_id);
+                    window.location.href = "executions.html?notebook_id=" + encodeURIComponent(runNotebookId);
                 } else {
                     const err = await execRes.json().catch(() => ({}));
                     alert("Run failed: " + (err.error || execRes.status));
