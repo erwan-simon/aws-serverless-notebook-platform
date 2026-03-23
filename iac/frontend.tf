@@ -75,14 +75,14 @@ resource "aws_s3_object" "config_js" {
   key          = "config.js"
   content_type = "application/javascript"
   content = templatefile("${path.root}/../code/frontend/config.js.tpl", {
-    api_base_url                  = ""
-    cognito_domain                = "${aws_cognito_user_pool_domain.main.domain}.auth.${data.aws_region.current.name}.amazoncognito.com"
-    cognito_client_id             = aws_cognito_user_pool_client.main.id
-    cognito_redirect_uri          = "https://${aws_cloudfront_distribution.main.domain_name}"
-    task_default_vcpu             = local.task_default_vcpu
-    task_default_memory           = local.task_default_memory
-    task_max_vcpu                 = local.task_max_vcpu
-    task_max_memory               = local.task_max_memory
-    session_idle_timeout_minutes  = local.session_idle_timeout_minutes
+    api_base_url                 = ""
+    cognito_domain               = "${aws_cognito_user_pool_domain.main.domain}.auth.${data.aws_region.current.name}.amazoncognito.com"
+    cognito_client_id            = aws_cognito_user_pool_client.main.id
+    cognito_redirect_uri         = "https://${aws_cloudfront_distribution.main.domain_name}"
+    task_default_vcpu            = local.task_default_vcpu
+    task_default_memory          = local.task_default_memory
+    task_max_vcpu                = local.task_max_vcpu
+    task_max_memory              = local.task_max_memory
+    session_idle_timeout_minutes = local.session_idle_timeout_minutes
   })
 }
