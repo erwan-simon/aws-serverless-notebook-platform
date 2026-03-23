@@ -96,27 +96,48 @@
                 return "https://us-east-1.console.aws.amazon.com/iam/home#/roles/details/" + encodeURIComponent(match[1]);
             }
 
-            function validationBadge(execId) {
+            function validationBadge(label, execId) {
                 if (!execId) return "";
-                return '<span class="status-badge status-validating" data-exec-id="' + execId + '">Validating</span>';
+                return '<span class="status-badge status-validating" data-exec-id="' + execId + '" data-label="' + label + '">' + label + ': Validating</span>';
+            }
+
+            function ecsTaskConsoleUrl(taskArn) {
+                // arn:aws:ecs:eu-west-1:123456:task/cluster_name/task_id
+                const match = taskArn.match(/^arn:aws:ecs:([^:]+):[^:]+:task\/([^/]+)\/(.+)$/);
+                if (!match) return null;
+                const [, region, cluster, taskId] = match;
+                return "https://" + region + ".console.aws.amazon.com/ecs/v2/clusters/" + cluster + "/tasks/" + taskId + "/configuration";
             }
 
             async function checkValidations() {
                 const badges = document.querySelectorAll("[data-exec-id]");
                 for (const badge of badges) {
                     const execId = badge.dataset.execId;
+                    const label = badge.dataset.label || "";
                     try {
                         const res = await fetch(CONFIG.apiBaseUrl + "/api/executions/" + encodeURIComponent(execId) + "/status");
                         if (!res.ok) continue;
                         const data = await res.json();
                         if (data.status === "SUCCEEDED") {
-                            badge.textContent = "Validated";
+                            badge.textContent = label + ": Compatible";
                             badge.className = "status-badge status-validated";
                             badge.title = "";
                         } else if (data.status === "FAILED" || data.status === "STOPPED") {
-                            badge.textContent = "Failed";
-                            badge.className = "status-badge status-failed";
-                            badge.title = data.failure_reason || "Validation failed";
+                            const taskUrl = ecsTaskConsoleUrl(data.task_arn || "");
+                            if (taskUrl) {
+                                const link = document.createElement("a");
+                                link.href = taskUrl;
+                                link.target = "_blank";
+                                link.innerHTML = label + ": Incompatible &#8599;";
+                                link.className = "status-badge status-failed";
+                                link.style.textDecoration = "none";
+                                link.title = data.failure_reason || "Validation failed";
+                                badge.replaceWith(link);
+                            } else {
+                                badge.textContent = label + ": Incompatible";
+                                badge.className = "status-badge status-failed";
+                                badge.title = data.failure_reason || "Validation failed";
+                            }
                         }
                     } catch (e) { /* ignore */ }
                 }
@@ -141,7 +162,8 @@
                     html += '</div>';
                     html += '<div style="display:flex;align-items:center;gap:8px;">';
                     if (isDynamic) {
-                        html += validationBadge(cfg.validation_execution_id);
+                        html += validationBadge("Notebook", cfg.validation_notebook_execution_id);
+                        html += validationBadge("Session", cfg.validation_session_execution_id);
                         html += '<button class="btn-delete" data-id="' + cfg.id + '">Delete</button>';
                     } else {
                         html += '<span style="font-size:12px;color:#999;font-style:italic;">Terraform</span>';

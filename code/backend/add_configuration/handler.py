@@ -46,29 +46,43 @@ def handler(event, context):
     vcpu = int(vcpu)
     memory = int(memory)
 
-    # Run validation notebook with this image + role pair
     lambda_client = boto3.client("lambda")
-    payload = {
+    run_fn = os.environ["RUN_NOTEBOOK_FUNCTION_NAME"]
+    technical_owner = os.environ["TECHNICAL_OWNER_ID"]
+    base_payload = {
         "source": "scheduler",
-        "notebook_id": os.environ["VALIDATION_NOTEBOOK_ID"],
         "iam_role_arn": iam_role_arn,
         "ecr_image_uri": ecr_image_uri,
-        "owner_id": os.environ["TECHNICAL_OWNER_ID"],
-        "owner_email": os.environ["TECHNICAL_OWNER_ID"],
+        "owner_id": technical_owner,
+        "owner_email": technical_owner,
         "vcpu": vcpu,
         "memory": memory,
     }
-    resp = lambda_client.invoke(
-        FunctionName=os.environ["RUN_NOTEBOOK_FUNCTION_NAME"],
-        InvocationType="RequestResponse",
-        Payload=json.dumps(payload),
+
+    def invoke_validation(extra):
+        payload = {**base_payload, **extra}
+        resp = lambda_client.invoke(
+            FunctionName=run_fn,
+            InvocationType="RequestResponse",
+            Payload=json.dumps(payload),
+        )
+        result = json.loads(resp["Payload"].read())
+        result_body = json.loads(result.get("body", "{}"))
+        return result_body.get("execution_id")
+
+    # Validation 1: run hello_world notebook with papermill
+    notebook_exec_id = invoke_validation({"notebook_id": os.environ["VALIDATION_NOTEBOOK_ID"]})
+    if not notebook_exec_id:
+        return {"statusCode": 500, "headers": HEADERS, "body": json.dumps({"error": "Notebook validation launch failed"})}
+
+    # Validation 2: start Jupyter and check health endpoint
+    session_command = (
+        "jupyter lab --ip=0.0.0.0 --port=8888 --allow-root --no-browser --ServerApp.token='' & "
+        "for i in $(seq 1 30); do sleep 2; curl -sf http://localhost:8888/api && exit 0; done; exit 1"
     )
-    result = json.loads(resp["Payload"].read())
-    result_body = json.loads(result.get("body", "{}"))
-    execution_id = result_body.get("execution_id")
-    if not execution_id:
-        error = result_body.get("error", "Unknown error")
-        return {"statusCode": 500, "headers": HEADERS, "body": json.dumps({"error": f"Validation launch failed: {error}"})}
+    session_exec_id = invoke_validation({"command": session_command})
+    if not session_exec_id:
+        return {"statusCode": 500, "headers": HEADERS, "body": json.dumps({"error": "Session validation launch failed"})}
 
     dynamodb = boto3.resource("dynamodb")
     table = dynamodb.Table(os.environ["CONFIGURATIONS_TABLE"])
@@ -82,7 +96,8 @@ def handler(event, context):
         "memory": memory,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "created_by": created_by,
-        "validation_execution_id": execution_id,
+        "validation_notebook_execution_id": notebook_exec_id,
+        "validation_session_execution_id": session_exec_id,
     }
     if description:
         item["description"] = description

@@ -56,6 +56,7 @@ def handler(event, context):
         "trigger_type": item.get("trigger_type", ""),
         "notebook_name": item.get("notebook_name", ""),
         "notebook_id": item.get("notebook_id", ""),
+        "task_arn": item.get("task_arn", ""),
     }
 
     # If already terminal, return directly

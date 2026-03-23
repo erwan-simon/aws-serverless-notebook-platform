@@ -26,8 +26,10 @@ def handler(event, context):
     max_vcpu = int(os.environ["TASK_MAX_VCPU"])
     max_memory = int(os.environ["TASK_MAX_MEMORY"])
 
+    custom_command = None
+
     if event.get("source") == "scheduler":
-        notebook_id = event["notebook_id"]
+        notebook_id = event.get("notebook_id", "")
         iam_role_arn = event["iam_role_arn"]
         ecr_image_uri = event["ecr_image_uri"]
         owner_id = event["owner_id"]
@@ -35,6 +37,7 @@ def handler(event, context):
         vcpu = int(event.get("vcpu", default_vcpu))
         memory = int(event.get("memory", default_memory))
         trigger_type = "scheduled"
+        custom_command = event.get("command")
     else:
         if event.get("headers", {}).get("x-origin-verify") != _origin_secret:
             return {"statusCode": 403, "headers": HEADERS, "body": json.dumps({"error": "Forbidden"})}
@@ -60,15 +63,18 @@ def handler(event, context):
             "body": json.dumps({"error": f"Invalid vcpu/memory. vcpu: 256-{max_vcpu}, memory: 512-{max_memory}"}),
         }
 
-    if not notebook_id:
-        return {"statusCode": 400, "headers": HEADERS, "body": json.dumps({"error": "Missing notebook_id"})}
+    if not notebook_id and not custom_command:
+        return {"statusCode": 400, "headers": HEADERS, "body": json.dumps({"error": "Missing notebook_id or command"})}
 
-    # Lookup notebook in DynamoDB
     dynamodb = boto3.resource("dynamodb")
-    notebooks_table = dynamodb.Table(os.environ["NOTEBOOKS_TABLE"])
-    notebook = notebooks_table.get_item(Key={"id": notebook_id}).get("Item")
-    if not notebook:
-        return {"statusCode": 404, "headers": HEADERS, "body": json.dumps({"error": "Notebook not found"})}
+    notebook = None
+    notebook_name = ""
+    if notebook_id:
+        notebooks_table = dynamodb.Table(os.environ["NOTEBOOKS_TABLE"])
+        notebook = notebooks_table.get_item(Key={"id": notebook_id}).get("Item")
+        if not notebook:
+            return {"statusCode": 404, "headers": HEADERS, "body": json.dumps({"error": "Notebook not found"})}
+        notebook_name = notebook.get("name", "")
 
     environment_name = os.environ["ENVIRONMENT_NAME"]
     cluster_name = os.environ["ECS_CLUSTER_NAME"]
@@ -79,13 +85,24 @@ def handler(event, context):
     resource_tags = json.loads(os.environ["RESOURCE_TAGS"])
 
     execution_id = str(uuid.uuid4())
-    input_s3_key = notebook["s3_key"]
-    output_s3_key = f"notebook_executions/{notebook_id}/{execution_id}.ipynb"
     task_family = f"{environment_name}_exec_{execution_id[:8]}"
+
+    if custom_command:
+        container_command = [custom_command]
+        output_s3_key = ""
+    else:
+        input_s3_key = notebook["s3_key"]
+        output_s3_key = f"notebook_executions/{notebook_id}/{execution_id}.ipynb"
+        container_command = [
+            f"aws s3 cp s3://{bucket}/{input_s3_key} /tmp/input.ipynb && "
+            f"papermill /tmp/input.ipynb /tmp/output.ipynb --no-progress-bar && "
+            f"aws s3 cp /tmp/output.ipynb s3://{bucket}/{output_s3_key}"
+        ]
 
     tags = [{"key": k, "value": v} for k, v in resource_tags.items()]
     tags.append({"key": "execution_id", "value": execution_id})
-    tags.append({"key": "notebook_id", "value": notebook_id})
+    if notebook_id:
+        tags.append({"key": "notebook_id", "value": notebook_id})
 
     ecs = boto3.client("ecs")
 
@@ -107,11 +124,7 @@ def handler(event, context):
                 "image": ecr_image_uri,
                 "essential": True,
                 "entryPoint": ["/bin/bash", "-c"],
-                "command": [
-                    f"aws s3 cp s3://{bucket}/{input_s3_key} /tmp/input.ipynb && "
-                    f"papermill /tmp/input.ipynb /tmp/output.ipynb --no-progress-bar && "
-                    f"aws s3 cp /tmp/output.ipynb s3://{bucket}/{output_s3_key}"
-                ],
+                "command": container_command,
                 "environment": [
                     {"name": "AWS_REGION", "value": os.environ.get("AWS_REGION", "eu-west-1")},
                 ],
@@ -148,18 +161,21 @@ def handler(event, context):
     task_arn = run_result["tasks"][0]["taskArn"]
 
     executions_table = dynamodb.Table(os.environ["EXECUTIONS_TABLE"])
-    executions_table.put_item(Item={
+    item = {
         "id": execution_id,
-        "notebook_id": notebook_id,
-        "notebook_name": notebook.get("name", ""),
         "status": "PENDING",
         "started_at": datetime.now(timezone.utc).isoformat(),
         "task_arn": task_arn,
-        "output_s3_key": output_s3_key,
         "owner_id": owner_id,
         "owner_email": owner_email,
         "trigger_type": trigger_type,
-    })
+    }
+    if notebook_id:
+        item["notebook_id"] = notebook_id
+        item["notebook_name"] = notebook_name
+    if output_s3_key:
+        item["output_s3_key"] = output_s3_key
+    executions_table.put_item(Item=item)
 
     return {
         "statusCode": 200,
