@@ -128,30 +128,25 @@
                     : '<span>' + label + '</span>';
             }
 
-            async function loadConfigurations() {
-                const res = await fetch(CONFIG.apiBaseUrl + "/api/configurations");
-                if (!res.ok) {
-                    content.innerHTML = "<p style='color:red'>Error " + res.status + "</p>";
-                    return;
-                }
-                const configs = await res.json();
-                if (!configs.length) {
-                    content.innerHTML = '<p class="empty">No custom configurations added yet.</p>';
-                    return;
-                }
-                let html = '<div class="cfg-list">';
-                for (const cfg of configs) {
+            function renderCard(cfg, isDynamic) {
                     const imageLabel = (cfg.ecr_image_uri || "").split("/").pop();
                     const roleLabel = (cfg.iam_role_arn || "").split("/").pop();
                     const ecrUrl = ecrConsoleUrl(cfg.ecr_image_uri || "");
                     const iamUrl = iamConsoleUrl(cfg.iam_role_arn || "");
 
-                    html += '<div class="cfg-card">';
+                    let html = '<div class="cfg-card">';
                     html += '<div class="cfg-header">';
                     html += '<div><span class="cfg-name">' + (cfg.name || "") + '</span>';
                     if (cfg.description) html += '<div class="cfg-desc">' + cfg.description + '</div>';
                     html += '</div>';
-                    html += '<div style="display:flex;align-items:center;gap:8px;">' + validationBadge(cfg.validation_execution_id) + '<button class="btn-delete" data-id="' + cfg.id + '">Delete</button></div>';
+                    html += '<div style="display:flex;align-items:center;gap:8px;">';
+                    if (isDynamic) {
+                        html += validationBadge(cfg.validation_execution_id);
+                        html += '<button class="btn-delete" data-id="' + cfg.id + '">Delete</button>';
+                    } else {
+                        html += '<span style="font-size:12px;color:#999;font-style:italic;">Terraform</span>';
+                    }
+                    html += '</div>';
                     html += '</div>';
                     html += '<div class="cfg-details">';
                     html += '<div class="cfg-detail"><span class="cfg-detail-label">Image</span> <span class="cfg-detail-value">' + linkOrText(ecrUrl, imageLabel) + '</span></div>';
@@ -163,7 +158,23 @@
                         html += '<div class="cfg-footer">' + cfg.created_by + '</div>';
                     }
                     html += '</div>';
+                    return html;
+            }
+
+            async function loadConfigurations() {
+                let html = '<div class="cfg-list">';
+                for (const cfg of CONFIG.availableConfigurations) {
+                    html += renderCard(cfg, false);
                 }
+                try {
+                    const res = await fetch(CONFIG.apiBaseUrl + "/api/configurations");
+                    if (res.ok) {
+                        const configs = await res.json();
+                        for (const cfg of configs) {
+                            html += renderCard(cfg, true);
+                        }
+                    }
+                } catch (e) { /* ignore */ }
                 html += '</div>';
                 content.innerHTML = html;
                 checkValidations();
