@@ -76,7 +76,6 @@ resource "aws_s3_object" "config_js" {
   content_type = "application/javascript"
   content = templatefile("${path.root}/../code/frontend/config.js.tpl", {
     api_base_url                  = ""
-    available_configurations_json = jsonencode(local.available_configurations)
     cognito_domain                = "${aws_cognito_user_pool_domain.main.domain}.auth.${data.aws_region.current.name}.amazoncognito.com"
     cognito_client_id             = aws_cognito_user_pool_client.main.id
     cognito_redirect_uri          = "https://${aws_cloudfront_distribution.main.domain_name}"

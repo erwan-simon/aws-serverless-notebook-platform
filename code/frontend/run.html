@@ -38,7 +38,7 @@
             await window._authReady;
 
             const configSelect = document.getElementById("config");
-            await loadConfigurationOptions(configSelect);
+            await loadConfigurationOptions(configSelect, null, "session");
 
             const vcpuSelect = document.getElementById("vcpu");
             const memorySelect = document.getElementById("memory");

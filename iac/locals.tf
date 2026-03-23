@@ -4,16 +4,6 @@ locals {
   domain_name         = "jupyter_sandbox"
   notebooks_s3_prefix = "notebooks/"
 
-  available_configurations = [
-    {
-      name          = "Default"
-      ecr_image_uri = "${module.build_base_image.ecr_url}:${local.image_tag}"
-      iam_role_arn  = aws_iam_role.ecs_execution.arn
-      vcpu          = local.task_default_vcpu
-      memory        = local.task_default_memory
-    },
-  ]
-
   session_idle_timeout_minutes = 60
 
   task_default_vcpu   = 512

@@ -479,7 +479,7 @@
             const dialogMemory = document.getElementById("dialogMemory");
             let runNotebookId = null;
 
-            await loadConfigurationOptions(dialogConfig);
+            await loadConfigurationOptions(dialogConfig, null, "notebook");
             function applyDialogConfigDefaults() {
                 const cfg = getSelectedConfig(dialogConfig);
                 populateVcpuSelect(dialogVcpu, dialogMemory, cfg.vcpu, cfg.memory);
@@ -550,7 +550,7 @@
             const schedMemory = document.getElementById("schedMemory");
             let schedNotebookId = null;
 
-            await loadConfigurationOptions(schedConfig);
+            await loadConfigurationOptions(schedConfig, null, "notebook");
             function applySchedConfigDefaults() {
                 const cfg = getSelectedConfig(schedConfig);
                 populateVcpuSelect(schedVcpu, schedMemory, cfg.vcpu, cfg.memory);

@@ -1,6 +1,5 @@
 const CONFIG = {
   apiBaseUrl: "${api_base_url}",
-  availableConfigurations: ${available_configurations_json},
   cognitoDomain: "${cognito_domain}",
   cognitoClientId: "${cognito_client_id}",
   cognitoRedirectUri: "${cognito_redirect_uri}",
@@ -11,30 +10,17 @@ const CONFIG = {
   sessionIdleTimeoutMinutes: ${session_idle_timeout_minutes}
 };
 
-async function loadConfigurationOptions(selectEl, defaultValue) {
+// context: "notebook" | "session" | null (no filter)
+async function loadConfigurationOptions(selectEl, defaultValue, context) {
   selectEl.innerHTML = "";
-  const seen = new Set();
-  for (const cfg of CONFIG.availableConfigurations) {
-    const key = cfg.ecr_image_uri + "||" + cfg.iam_role_arn;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    const opt = document.createElement("option");
-    opt.value = key;
-    opt.dataset.ecrImageUri = cfg.ecr_image_uri;
-    opt.dataset.iamRoleArn = cfg.iam_role_arn;
-    opt.dataset.vcpu = cfg.vcpu;
-    opt.dataset.memory = cfg.memory;
-    opt.textContent = cfg.name;
-    selectEl.appendChild(opt);
-  }
   try {
     const res = await fetch(CONFIG.apiBaseUrl + "/api/configurations");
     if (res.ok) {
       const configs = await res.json();
       for (const cfg of configs) {
+        if (context === "notebook" && cfg.validation_notebook_status === "FAILED") continue;
+        if (context === "session" && cfg.validation_session_status === "FAILED") continue;
         const key = cfg.ecr_image_uri + "||" + cfg.iam_role_arn;
-        if (seen.has(key)) continue;
-        seen.add(key);
         const opt = document.createElement("option");
         opt.value = key;
         opt.dataset.ecrImageUri = cfg.ecr_image_uri;
@@ -45,7 +31,7 @@ async function loadConfigurationOptions(selectEl, defaultValue) {
         selectEl.appendChild(opt);
       }
     }
-  } catch (e) { /* silently fall back to static list */ }
+  } catch (e) { /* ignore */ }
   if (defaultValue) selectEl.value = defaultValue;
 }
 

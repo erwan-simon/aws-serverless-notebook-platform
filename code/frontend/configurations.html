@@ -149,7 +149,8 @@
                     : '<span>' + label + '</span>';
             }
 
-            function renderCard(cfg, isDynamic) {
+            function renderCard(cfg) {
+                    const isManaged = cfg.managed_by === "terraform";
                     const imageLabel = (cfg.ecr_image_uri || "").split("/").pop();
                     const roleLabel = (cfg.iam_role_arn || "").split("/").pop();
                     const ecrUrl = ecrConsoleUrl(cfg.ecr_image_uri || "");
@@ -161,12 +162,12 @@
                     if (cfg.description) html += '<div class="cfg-desc">' + cfg.description + '</div>';
                     html += '</div>';
                     html += '<div style="display:flex;align-items:center;gap:8px;">';
-                    if (isDynamic) {
-                        html += validationBadge("Notebook", cfg.validation_notebook_execution_id);
-                        html += validationBadge("Session", cfg.validation_session_execution_id);
-                        html += '<button class="btn-delete" data-id="' + cfg.id + '">Delete</button>';
-                    } else {
+                    html += validationBadge("Notebook", cfg.validation_notebook_execution_id);
+                    html += validationBadge("Session", cfg.validation_session_execution_id);
+                    if (isManaged) {
                         html += '<span style="font-size:12px;color:#999;font-style:italic;">Terraform</span>';
+                    } else {
+                        html += '<button class="btn-delete" data-id="' + cfg.id + '">Delete</button>';
                     }
                     html += '</div>';
                     html += '</div>';
@@ -185,15 +186,12 @@
 
             async function loadConfigurations() {
                 let html = '<div class="cfg-list">';
-                for (const cfg of CONFIG.availableConfigurations) {
-                    html += renderCard(cfg, false);
-                }
                 try {
                     const res = await fetch(CONFIG.apiBaseUrl + "/api/configurations");
                     if (res.ok) {
                         const configs = await res.json();
                         for (const cfg of configs) {
-                            html += renderCard(cfg, true);
+                            html += renderCard(cfg);
                         }
                     }
                 } catch (e) { /* ignore */ }

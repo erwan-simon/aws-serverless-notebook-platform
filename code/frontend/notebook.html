@@ -134,7 +134,7 @@
                 });
             }
 
-            async function populateConfigSelect(sel) { await loadConfigurationOptions(sel); }
+            async function populateConfigSelect(sel, context) { await loadConfigurationOptions(sel, null, context); }
 
             // Show Run & Schedule buttons only when viewing a notebook by id (not an execution output)
             if (id) {
@@ -147,7 +147,7 @@
                 const dialogVcpu = document.getElementById("dialogVcpu");
                 const dialogMemory = document.getElementById("dialogMemory");
 
-                await populateConfigSelect(dialogConfig);
+                await populateConfigSelect(dialogConfig, "notebook");
                 function applyDialogConfigDefaults() {
                     const cfg = getSelectedConfig(dialogConfig);
                     populateVcpuSelect(dialogVcpu, dialogMemory, cfg.vcpu, cfg.memory);
@@ -201,7 +201,7 @@
                 const schedMemory = document.getElementById("schedMemory");
                 const schedCron = document.getElementById("schedCron");
 
-                await populateConfigSelect(schedConfig);
+                await populateConfigSelect(schedConfig, "notebook");
                 function applySchedConfigDefaults() {
                     const cfg = getSelectedConfig(schedConfig);
                     populateVcpuSelect(schedVcpu, schedMemory, cfg.vcpu, cfg.memory);
