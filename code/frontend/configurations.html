@@ -12,6 +12,15 @@
         .btn-add:hover { background: #f5f5f5; border-color: #999; color: #222; }
         .btn-delete { background: #ffebee; color: #c62828; cursor: pointer; border: none; font-size: 13px; padding: 5px 14px; border-radius: 4px; }
         .btn-delete:hover { background: #ffcdd2; }
+        .kebab-wrap { position: relative; }
+        .kebab-btn { background: none; border: 1px solid #ddd; border-radius: 4px; cursor: pointer; font-size: 18px; line-height: 1; padding: 2px 8px; color: #666; }
+        .kebab-btn:hover { background: #f0f0f0; }
+        .kebab-menu { display: none; position: absolute; right: 0; top: 100%; margin-top: 4px; background: #fff; border: 1px solid #ddd; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 10; min-width: 140px; overflow: hidden; }
+        .kebab-menu.open { display: block; }
+        .kebab-menu button { display: block; width: 100%; text-align: left; padding: 8px 14px; border: none; background: none; font-size: 13px; cursor: pointer; color: #333; }
+        .kebab-menu button:hover { background: #f5f5f5; }
+        .kebab-menu button.danger { color: #c62828; }
+        .kebab-menu button.danger:hover { background: #ffebee; }
         .loading { color: #999; font-style: italic; }
         .empty { color: #999; font-style: italic; padding: 20px 0; }
         .header-bar { display: flex; align-items: center; justify-content: space-between; }
@@ -66,6 +75,27 @@
         <div>
             <button class="btn-submit" id="submitBtn">Add</button>
             <button class="btn-cancel" id="cancelBtn">Cancel</button>
+        </div>
+    </dialog>
+
+    <dialog id="editDialog">
+        <h3>Edit Configuration</h3>
+        <input type="hidden" id="editId">
+        <label for="editName">Name</label>
+        <input type="text" id="editName">
+        <label for="editImage">Docker Image URI</label>
+        <input type="text" id="editImage">
+        <label for="editRole">IAM Role ARN</label>
+        <input type="text" id="editRole">
+        <label for="editVcpu">vCPU</label>
+        <select id="editVcpu"></select>
+        <label for="editMemory">Memory</label>
+        <select id="editMemory"></select>
+        <label for="editDesc">Description <span style="font-weight:400; color:#999;">(optional)</span></label>
+        <input type="text" id="editDesc">
+        <div>
+            <button class="btn-submit" id="editSubmitBtn">Save</button>
+            <button class="btn-cancel" id="editCancelBtn">Cancel</button>
         </div>
     </dialog>
 
@@ -167,7 +197,13 @@
                     if (isManaged) {
                         html += '<span style="font-size:12px;color:#999;font-style:italic;">Terraform</span>';
                     } else {
-                        html += '<button class="btn-delete" data-id="' + cfg.id + '">Delete</button>';
+                        html += '<div class="kebab-wrap">';
+                        html += '<button class="kebab-btn" data-kebab>&#8942;</button>';
+                        html += '<div class="kebab-menu">';
+                        html += '<button data-action="edit" data-cfg=\'' + JSON.stringify(cfg).replace(/'/g, "&#39;") + '\'>Edit</button>';
+                        html += '<button data-action="validate" data-id="' + cfg.id + '">Revalidate</button>';
+                        html += '<button class="danger" data-action="delete" data-id="' + cfg.id + '">Delete</button>';
+                        html += '</div></div>';
                     }
                     html += '</div>';
                     html += '</div>';
@@ -240,21 +276,73 @@
                 btn.textContent = "Add";
             });
 
-            content.addEventListener("click", async (e) => {
-                if (!e.target.classList.contains("btn-delete")) return;
-                if (!confirm("Delete this configuration?")) return;
-                const id = e.target.dataset.id;
-                e.target.disabled = true;
-                e.target.textContent = "Deleting...";
-                const res = await fetch(CONFIG.apiBaseUrl + "/api/configurations/" + encodeURIComponent(id), { method: "DELETE" });
-                if (res.ok) {
-                    await loadConfigurations();
-                } else {
-                    const err = await res.json().catch(() => ({}));
-                    alert("Delete failed: " + (err.error || res.status));
-                    e.target.disabled = false;
-                    e.target.textContent = "Delete";
+            // Kebab menu toggle
+            content.addEventListener("click", (e) => {
+                const kebabBtn = e.target.closest("[data-kebab]");
+                if (kebabBtn) {
+                    e.stopPropagation();
+                    const menu = kebabBtn.nextElementSibling;
+                    document.querySelectorAll(".kebab-menu.open").forEach(m => { if (m !== menu) m.classList.remove("open"); });
+                    menu.classList.toggle("open");
+                    return;
                 }
+            });
+            document.addEventListener("click", () => document.querySelectorAll(".kebab-menu.open").forEach(m => m.classList.remove("open")));
+
+            // Kebab menu actions
+            content.addEventListener("click", async (e) => {
+                const btn = e.target.closest("[data-action]");
+                if (!btn) return;
+                const action = btn.dataset.action;
+                const id = btn.dataset.id;
+
+                if (action === "delete") {
+                    if (!confirm("Delete this configuration?")) return;
+                    const res = await fetch(CONFIG.apiBaseUrl + "/api/configurations/" + encodeURIComponent(id), { method: "DELETE" });
+                    if (res.ok) { await loadConfigurations(); } else { const err = await res.json().catch(() => ({})); alert("Delete failed: " + (err.error || res.status)); }
+                }
+
+                if (action === "validate") {
+                    const res = await fetch(CONFIG.apiBaseUrl + "/api/configurations/" + encodeURIComponent(id), { method: "PATCH", headers: { "Content-Type": "application/json" }, body: "{}" });
+                    if (res.ok) { await loadConfigurations(); } else { const err = await res.json().catch(() => ({})); alert("Revalidate failed: " + (err.error || res.status)); }
+                }
+
+                if (action === "edit") {
+                    const cfg = JSON.parse(btn.dataset.cfg);
+                    document.getElementById("editId").value = cfg.id;
+                    document.getElementById("editName").value = cfg.name || "";
+                    document.getElementById("editImage").value = cfg.ecr_image_uri || "";
+                    document.getElementById("editRole").value = cfg.iam_role_arn || "";
+                    document.getElementById("editDesc").value = cfg.description || "";
+                    populateVcpuSelect(editVcpu, editMemory, parseInt(cfg.vcpu), parseInt(cfg.memory));
+                    editDialog.showModal();
+                }
+            });
+
+            // Edit dialog
+            const editDialog = document.getElementById("editDialog");
+            const editVcpu = document.getElementById("editVcpu");
+            const editMemory = document.getElementById("editMemory");
+            editVcpu.addEventListener("change", () => populateMemorySelect(editVcpu, editMemory));
+            document.getElementById("editCancelBtn").addEventListener("click", () => editDialog.close());
+            document.getElementById("editSubmitBtn").addEventListener("click", async () => {
+                const id = document.getElementById("editId").value;
+                const body = {
+                    name: document.getElementById("editName").value.trim(),
+                    ecr_image_uri: document.getElementById("editImage").value.trim(),
+                    iam_role_arn: document.getElementById("editRole").value.trim(),
+                    description: document.getElementById("editDesc").value.trim(),
+                    vcpu: parseInt(editVcpu.value),
+                    memory: parseInt(editMemory.value),
+                };
+                if (!body.name || !body.ecr_image_uri || !body.iam_role_arn) { alert("Name, Image URI and Role ARN are required"); return; }
+                const btn = document.getElementById("editSubmitBtn");
+                btn.disabled = true; btn.textContent = "Saving...";
+                const res = await fetch(CONFIG.apiBaseUrl + "/api/configurations/" + encodeURIComponent(id), {
+                    method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+                });
+                if (res.ok) { editDialog.close(); await loadConfigurations(); } else { const err = await res.json().catch(() => ({})); alert("Update failed: " + (err.error || res.status)); }
+                btn.disabled = false; btn.textContent = "Save";
             });
         })();
     </script>
