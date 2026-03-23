@@ -126,8 +126,10 @@
                 return "https://us-east-1.console.aws.amazon.com/iam/home#/roles/details/" + encodeURIComponent(match[1]);
             }
 
-            function validationBadge(label, execId) {
+            function validationBadge(label, execId, status) {
                 if (!execId) return "";
+                if (status === "SUCCEEDED") return '<span class="status-badge status-validated">' + label + ': Compatible</span>';
+                if (status === "FAILED" || status === "STOPPED") return '<span class="status-badge status-failed" data-exec-id="' + execId + '" data-label="' + label + '">' + label + ': Incompatible</span>';
                 return '<span class="status-badge status-validating" data-exec-id="' + execId + '" data-label="' + label + '">' + label + ': Validating</span>';
             }
 
@@ -141,17 +143,17 @@
 
             async function checkValidations() {
                 const badges = document.querySelectorAll("[data-exec-id]");
-                for (const badge of badges) {
+                await Promise.all(Array.from(badges).map(async (badge) => {
                     const execId = badge.dataset.execId;
                     const label = badge.dataset.label || "";
                     try {
                         const res = await fetch(CONFIG.apiBaseUrl + "/api/executions/" + encodeURIComponent(execId) + "/status");
-                        if (!res.ok) continue;
+                        if (!res.ok) return;
                         const data = await res.json();
                         if (data.status === "SUCCEEDED") {
                             badge.textContent = label + ": Compatible";
                             badge.className = "status-badge status-validated";
-                            badge.title = "";
+                            badge.removeAttribute("data-exec-id");
                         } else if (data.status === "FAILED" || data.status === "STOPPED") {
                             const taskUrl = ecsTaskConsoleUrl(data.task_arn || "");
                             if (taskUrl) {
@@ -166,11 +168,11 @@
                             } else {
                                 badge.textContent = label + ": Incompatible";
                                 badge.className = "status-badge status-failed";
-                                badge.title = data.failure_reason || "Validation failed";
+                                badge.removeAttribute("data-exec-id");
                             }
                         }
                     } catch (e) { /* ignore */ }
-                }
+                }));
             }
 
             function linkOrText(url, label) {
@@ -192,8 +194,8 @@
                     if (cfg.description) html += '<div class="cfg-desc">' + cfg.description + '</div>';
                     html += '</div>';
                     html += '<div style="display:flex;align-items:center;gap:8px;">';
-                    html += validationBadge("Notebook", cfg.validation_notebook_execution_id);
-                    html += validationBadge("Session", cfg.validation_session_execution_id);
+                    html += validationBadge("Notebook", cfg.validation_notebook_execution_id, cfg.validation_notebook_status);
+                    html += validationBadge("Session", cfg.validation_session_execution_id, cfg.validation_session_status);
                     if (isManaged) {
                         html += '<span style="font-size:12px;color:#999;font-style:italic;">Terraform</span>';
                     }
