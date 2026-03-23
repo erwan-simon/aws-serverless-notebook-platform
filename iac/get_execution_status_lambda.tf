@@ -24,7 +24,7 @@ module "get_execution_status" {
   source                        = "./lambda_backend_module/"
   environment_name              = local.environment_name
   lambda_name                   = "get_execution_status"
-  code_path                     = "${path.root}/../code/backend/get_execution_status/"
+  code_path                     = "${path.root}/../code/backend/execution/get_execution_status/"
   api_id                        = aws_apigatewayv2_api.main.id
   api_execution_arn             = aws_apigatewayv2_api.main.execution_arn
   authorizer_id                 = aws_apigatewayv2_authorizer.cognito.id

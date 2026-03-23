@@ -24,7 +24,7 @@ module "add_configuration" {
   source                        = "./lambda_backend_module/"
   environment_name              = local.environment_name
   lambda_name                   = "add_configuration"
-  code_path                     = "${path.root}/../code/backend/add_configuration/"
+  code_path                     = "${path.root}/../code/backend/configuration/add_configuration/"
   timeout                       = 60
   api_id                        = aws_apigatewayv2_api.main.id
   api_execution_arn             = aws_apigatewayv2_api.main.execution_arn

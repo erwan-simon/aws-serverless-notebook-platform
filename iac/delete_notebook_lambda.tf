@@ -24,7 +24,7 @@ module "delete_notebook" {
   source                        = "./lambda_backend_module/"
   environment_name              = local.environment_name
   lambda_name                   = "delete_notebook"
-  code_path                     = "${path.root}/../code/backend/delete_notebook/"
+  code_path                     = "${path.root}/../code/backend/notebook/delete_notebook/"
   api_id                        = aws_apigatewayv2_api.main.id
   api_execution_arn             = aws_apigatewayv2_api.main.execution_arn
   authorizer_id                 = aws_apigatewayv2_authorizer.cognito.id

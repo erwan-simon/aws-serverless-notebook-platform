@@ -20,7 +20,7 @@ module "list_executions" {
   source                        = "./lambda_backend_module/"
   environment_name              = local.environment_name
   lambda_name                   = "list_executions"
-  code_path                     = "${path.root}/../code/backend/list_executions/"
+  code_path                     = "${path.root}/../code/backend/execution/list_executions/"
   api_id                        = aws_apigatewayv2_api.main.id
   api_execution_arn             = aws_apigatewayv2_api.main.execution_arn
   authorizer_id                 = aws_apigatewayv2_authorizer.cognito.id

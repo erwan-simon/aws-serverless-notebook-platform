@@ -24,7 +24,7 @@ module "upload_notebook" {
   source                        = "./lambda_backend_module/"
   environment_name              = local.environment_name
   lambda_name                   = "upload_notebook"
-  code_path                     = "${path.root}/../code/backend/upload_notebook/"
+  code_path                     = "${path.root}/../code/backend/notebook/upload_notebook/"
   timeout                       = 60
   memory_size                   = 512
   api_id                        = aws_apigatewayv2_api.main.id

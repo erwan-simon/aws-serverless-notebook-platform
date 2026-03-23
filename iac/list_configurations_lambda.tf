@@ -28,7 +28,7 @@ module "list_configurations" {
   source                        = "./lambda_backend_module/"
   environment_name              = local.environment_name
   lambda_name                   = "list_configurations"
-  code_path                     = "${path.root}/../code/backend/list_configurations/"
+  code_path                     = "${path.root}/../code/backend/configuration/list_configurations/"
   timeout                       = 60
   api_id                        = aws_apigatewayv2_api.main.id
   api_execution_arn             = aws_apigatewayv2_api.main.execution_arn

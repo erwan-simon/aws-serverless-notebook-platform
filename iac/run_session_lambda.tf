@@ -65,7 +65,7 @@ module "run_session" {
   source                        = "./lambda_backend_module/"
   environment_name              = local.environment_name
   lambda_name                   = "run_session"
-  code_path                     = "${path.root}/../code/backend/run_session/"
+  code_path                     = "${path.root}/../code/backend/session/run_session/"
   timeout                       = 60
   api_id                        = aws_apigatewayv2_api.main.id
   api_execution_arn             = aws_apigatewayv2_api.main.execution_arn

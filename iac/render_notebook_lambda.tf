@@ -24,7 +24,7 @@ module "render_notebook" {
   source                        = "./lambda_backend_module/"
   environment_name              = local.environment_name
   lambda_name                   = "render_notebook"
-  code_path                     = "${path.root}/../code/backend/render_notebook/"
+  code_path                     = "${path.root}/../code/backend/notebook/render_notebook/"
   timeout                       = 60
   memory_size                   = 512
   api_id                        = aws_apigatewayv2_api.main.id

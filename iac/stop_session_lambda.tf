@@ -35,7 +35,7 @@ module "stop_session" {
   source                        = "./lambda_backend_module/"
   environment_name              = local.environment_name
   lambda_name                   = "stop_session"
-  code_path                     = "${path.root}/../code/backend/stop_session/"
+  code_path                     = "${path.root}/../code/backend/session/stop_session/"
   api_id                        = aws_apigatewayv2_api.main.id
   api_execution_arn             = aws_apigatewayv2_api.main.execution_arn
   authorizer_id                 = aws_apigatewayv2_authorizer.cognito.id

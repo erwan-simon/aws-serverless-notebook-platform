@@ -1,6 +1,6 @@
 locals {
   update_execution_status_function_name = "${local.environment_name}_update_execution_status"
-  update_execution_status_code_path     = "${path.root}/../code/backend/update_execution_status/"
+  update_execution_status_code_path     = "${path.root}/../code/backend/execution/update_execution_status/"
   update_execution_status_rebuild_trigger = {
     task_code_hashes = jsonencode({
       for file_path in fileset(trimsuffix(local.update_execution_status_code_path, "/"), "**") :
