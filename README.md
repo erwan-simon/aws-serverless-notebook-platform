@@ -2,6 +2,10 @@
 
 A self-hosted, serverless platform for managing and executing Jupyter notebooks on AWS. Built entirely with Terraform, it provides a web portal to upload notebooks, launch interactive Jupyter sessions on ECS Fargate, run notebooks as batch jobs, and schedule recurring executions — all behind Cognito authentication and CloudFront.
 
+| ![Notebooks list](docs/screenshots/notebooks_list.png) | ![Notebook viewer](docs/screenshots/notebook.png) |
+|:---:|:---:|
+| ![Interactive session](docs/screenshots/session.png) | ![Configurations](docs/screenshots/configurations.png) |
+
 ## Features
 
 - **Notebook Management** — Upload, organize in folders, delete, and view rendered notebooks
