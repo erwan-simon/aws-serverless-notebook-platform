@@ -46,6 +46,37 @@ def _invoke_validation(lambda_client, run_fn, item, extra):
     return result_body.get("execution_id")
 
 
+def _seed_managed_configurations(table):
+    managed_configs = json.loads(os.environ.get("MANAGED_CONFIGURATIONS", "[]"))
+    for cfg in managed_configs:
+        existing = table.get_item(Key={"id": cfg["id"]}).get("Item")
+        if not existing:
+            table.put_item(Item={
+                "id": cfg["id"],
+                "name": cfg["name"],
+                "ecr_image_uri": cfg["ecr_image_uri"],
+                "iam_role_arn": cfg["iam_role_arn"],
+                "vcpu": cfg["vcpu"],
+                "memory": cfg["memory"],
+                "managed_by": "terraform",
+                "created_at": "2026-01-01T00:00:00+00:00",
+                "created_by": "terraform",
+            })
+        else:
+            table.update_item(
+                Key={"id": cfg["id"]},
+                UpdateExpression="SET #name = :name, #ecr = :ecr, #role = :role, #vcpu = :vcpu, #mem = :mem",
+                ExpressionAttributeNames={
+                    "#name": "name", "#ecr": "ecr_image_uri", "#role": "iam_role_arn",
+                    "#vcpu": "vcpu", "#mem": "memory",
+                },
+                ExpressionAttributeValues={
+                    ":name": cfg["name"], ":ecr": cfg["ecr_image_uri"],
+                    ":role": cfg["iam_role_arn"], ":vcpu": cfg["vcpu"], ":mem": cfg["memory"],
+                },
+            )
+
+
 def handler(event, context):
     if event.get("headers", {}).get("x-origin-verify") != _origin_secret:
         return {"statusCode": 403, "headers": HEADERS, "body": json.dumps({"error": "Forbidden"})}
@@ -53,6 +84,8 @@ def handler(event, context):
     dynamodb = boto3.resource("dynamodb")
     table = dynamodb.Table(os.environ["CONFIGURATIONS_TABLE"])
     executions_table = dynamodb.Table(os.environ["EXECUTIONS_TABLE"])
+
+    _seed_managed_configurations(table)
 
     items = []
     response = table.scan()

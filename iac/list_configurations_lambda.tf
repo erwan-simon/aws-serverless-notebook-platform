@@ -1,6 +1,6 @@
 data "aws_iam_policy_document" "list_configurations_lambda" {
   statement {
-    actions   = ["dynamodb:Scan", "dynamodb:UpdateItem"]
+    actions   = ["dynamodb:Scan", "dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem"]
     resources = [aws_dynamodb_table.configurations.arn]
   }
   statement {
@@ -42,6 +42,16 @@ module "list_configurations" {
     RUN_NOTEBOOK_FUNCTION_NAME = module.run_notebook.function_name
     VALIDATION_NOTEBOOK_ID     = local.validation_notebook_id
     TECHNICAL_OWNER_ID         = local.technical_owner_id
+    MANAGED_CONFIGURATIONS = jsonencode([
+      {
+        id            = "default"
+        name          = "Default"
+        ecr_image_uri = "${module.build_base_image.ecr_url}:${local.image_tag}"
+        iam_role_arn  = aws_iam_role.ecs_execution.arn
+        vcpu          = local.task_default_vcpu
+        memory        = local.task_default_memory
+      },
+    ])
   }
   tags_map = {
     Appli          = var.project_name
