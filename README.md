@@ -5,13 +5,15 @@ A self-hosted, serverless platform for managing and executing Jupyter notebooks 
 ## Features
 
 - **Notebook Management** — Upload, organize in folders, delete, and view rendered notebooks
-- **Interactive Sessions** — Launch on-demand Jupyter environments on ECS Fargate with configurable CPU/memory/image/IAM role
+- **Interactive Sessions** — Launch on-demand Jupyter environments on ECS Fargate with configurable CPU/memory
 - **Batch Execution** — Run notebooks as one-off ECS tasks with real-time status tracking
 - **Scheduling** — Cron-based recurring execution via EventBridge Scheduler
+- **Dockerized Environments** — Dependencies managed via Docker images
+- **Custom Images & Roles** — Add your own Docker images and IAM roles directly from the UI, with automatic compatibility validation
 - **Authentication** — Cognito User Pool with OAuth2 PKCE flow
 - **Security** — WAF (rate limiting, geo-blocking, IP whitelist), CloudFront origin verification, API Gateway JWT authorization and throttling
 - **Monitoring** — CloudWatch alarms on WAF, Lambda errors, ECS task failures, with SNS email notifications
-- **Persistent Storage** — EFS filesystem available across sessions with dedicated and shared space for each users
+- **Persistent Storage** — EFS filesystem with per-user and shared space across sessions
 - **Multi-environment** — Terraform workspaces for dev/staging/prod isolation
 
 ### High-level overview
@@ -19,11 +21,14 @@ A self-hosted, serverless platform for managing and executing Jupyter notebooks 
 ```
 User → WAF → CloudFront ──→ S3 (frontend SPA)
                          └─→ API Gateway (HTTP API, JWT auth)
-                              └─→ Lambda functions
-                                   ├── DynamoDB (notebooks, executions)
+                              └─→ Lambda functions (17)
+                                   ├── DynamoDB (notebooks, executions, configurations)
                                    ├── S3 (notebook files, rendered HTML)
                                    └── ECS Fargate (sessions, batch runs)
                                         └── EFS (persistent storage)
+
+Session traffic:
+User → WAF → CloudFront → ALB (/s/{service_name}/*) → ECS task (Jupyter)
 
 EventBridge ──→ Lambda (status sync, session cleanup)
            └──→ SNS (task failure alerts)
@@ -35,7 +40,7 @@ EventBridge Scheduler ──→ Lambda (scheduled notebook runs)
 
 - [Terraform](https://developer.hashicorp.com/terraform/install) >= 1.0
 - AWS CLI configured with appropriate credentials
-- An AWS account with permissions to create: VPC resources, ECS, Lambda, S3, DynamoDB, CloudFront, WAF, Cognito, EventBridge, SNS, EFS, IAM roles, CloudWatch, API Gateway, ECR, SSM
+- An AWS account with permissions to create: VPC resources, ECS, Lambda, S3, DynamoDB, CloudFront, WAF, Cognito, EventBridge, SNS, EFS, IAM roles, CloudWatch, API Gateway, ECR, SSM, ALB
 - An existing VPC with public subnets tagged `Tier = "Public"` and the VPC tagged with `Name = "{project_name}_network_platform_prod"`
 - Docker (for building Lambda and Jupyter container images)
 
@@ -44,39 +49,30 @@ EventBridge Scheduler ──→ Lambda (scheduled notebook runs)
 ```
 .
 ├── code/
-│   ├── backend/                    # Lambda function handlers (Python)
-│   │   ├── upload_notebook/
-│   │   ├── list_notebooks/
-│   │   ├── delete_notebook/
-│   │   ├── render_notebook/
-│   │   ├── schedule_notebook/
-│   │   ├── unschedule_notebook/
-│   │   ├── list_executions/
-│   │   ├── run_notebook/
-│   │   ├── get_execution_status/
-│   │   ├── run_session/
-│   │   ├── get_session/
-│   │   ├── get_session_status/
-│   │   └── stop_session/
-│   ├── frontend/                   # Static SPA (HTML + vanilla JS)
-│   │   ├── index.html              # Notebook list, upload, session launcher
-│   │   ├── notebook.html           # Notebook viewer, run, schedule
-│   │   ├── run.html                # Session configuration
-│   │   ├── executions.html         # Execution history
-│   │   ├── execution_status.html   # Execution tracking
-│   │   ├── status.html             # Session launch status
-│   │   ├── auth.js                 # Cognito PKCE authentication
-│   │   └── config.js.tpl           # Terraform-templated configuration
-│   ├── docker_images/default/      # Base Jupyter Docker image
-│   └── lambda_cleanup_idle_session/ # Session cleanup Lambda
-├── iac/                            # Terraform root module
-│   ├── lambda_backend_module/      # Reusable Lambda deployment module
-│   ├── sandbox_instance_module/    # Reusable ECS Jupyter instance module
-│   ├── terraform.tfvars            # Variable values
-│   └── *.tf                        # Infrastructure definitions
-├── architecture_functional.drawio
-├── architecture_technical.drawio
-└── LICENSE                         # CC BY-NC 4.0
+│   ├── backend/                       # Lambda function handlers (Python)
+│   │   ├── configuration/             # Add, delete, list, update configurations
+│   │   ├── notebook/                  # Upload, list, delete, render, run notebooks
+│   │   ├── execution/                 # Get status, list, update execution status
+│   │   ├── session/                   # Run, get, stop sessions
+│   │   └── schedule/                  # Schedule, unschedule notebook runs
+│   ├── frontend/                      # Static SPA (HTML + vanilla JS)
+│   │   ├── index.html                 # Notebook list, upload, run
+│   │   ├── notebook.html              # Notebook viewer, run, schedule
+│   │   ├── run.html                   # Session launch (config + resources)
+│   │   ├── session.html               # Active session view
+│   │   ├── executions.html            # Execution history
+│   │   ├── configurations.html        # Configuration management (CRUD + validation)
+│   │   ├── auth.js                    # Cognito PKCE authentication
+│   │   └── config.js.tpl              # Terraform-templated configuration
+│   ├── docker_images/default/         # Base Jupyter Docker image
+│   └── lambda_cleanup_idle_session/   # Session cleanup Lambda
+├── iac/                               # Terraform root module
+│   ├── lambda_backend_module/         # Reusable Lambda deployment module
+│   ├── sandbox_instance_module/       # Reusable ECS Jupyter instance module
+│   ├── backend_*_lambda.tf            # One file per backend Lambda
+│   ├── terraform.tfvars               # Variable values
+│   └── *.tf                           # Infrastructure definitions
+└── LICENSE                            # CC BY-NC 4.0
 ```
 
 ## Deployment
@@ -126,7 +122,7 @@ terraform output cloudfront_url
 terraform output api_gateway_url
 ```
 
-Open the CloudFront URL in your browser. You will be redirected to Cognito for authentication. Sign up with your email to create an account.
+Open the CloudFront URL in your browser. You will be redirected to Cognito for authentication.
 
 ## Configuration
 
@@ -147,60 +143,63 @@ Defined in `iac/locals.tf`:
 | Local | Default | Description |
 |-------|---------|-------------|
 | `session_idle_timeout_minutes` | `60` | Minutes before idle sessions are cleaned up |
-| `task_default_vcpu` | `256` | Default vCPU for tasks (256 = 0.25 vCPU) |
-| `task_default_memory` | `512` | Default memory in MB |
+| `task_default_vcpu` | `512` | Default vCPU for tasks (512 = 0.5 vCPU) |
+| `task_default_memory` | `1024` | Default memory in MB |
 | `task_max_vcpu` | `4096` | Max vCPU users can select (4096 = 4 vCPU) |
 | `task_max_memory` | `16384` | Max memory users can select (16 GB) |
 
-### Adding Custom Docker Images
+### Configurations (Docker Image + IAM Role)
 
-Custom Docker images allow you to provide pre-installed libraries, tools, or configurations tailored to specific use cases (e.g. a data science image with pandas/scikit-learn, a Spark image, etc.). Users can then select the appropriate image when launching a session or running a notebook.
+Configurations pair a Docker image URI with an IAM role ARN, along with default vCPU/memory. Users select a configuration when launching sessions or running notebooks.
 
-Add ECR image URIs to the `available_ecr_images` list in `iac/locals.tf`:
+**Terraform-managed configurations** are defined in the `MANAGED_CONFIGURATIONS` environment variable of the `list_configurations` Lambda (see `iac/backend_list_configurations_lambda.tf`). They are automatically seeded into DynamoDB and cannot be edited or deleted from the UI.
 
-```hcl
-available_ecr_images = [
-  "${module.build_base_image.ecr_url}:${local.image_tag}",
-  "123456789.dkr.ecr.eu-west-1.amazonaws.com/my-custom-jupyter:latest",
-]
-```
+**Custom configurations** can be added from the UI. When created, two validations are launched automatically:
+1. **Notebook validation** — Runs a hello_world notebook with papermill
+2. **Session validation** — Starts JupyterLab and health-checks the API endpoint
 
-Images must be hosted in ECR and accessible by the IAM role assigned to the task (see below).
+Configurations that fail validation are filtered from the relevant dropdowns (e.g. a config that fails session validation won't appear in the session launch dropdown).
 
-### Adding Custom IAM Roles
+### Adding Terraform-managed Configurations
 
-Custom IAM roles allow you to grant different AWS permissions depending on the workload. For example, a role with read-only access to a specific S3 bucket for one team, and a role with Athena + Glue permissions for another. Users select the role when launching a session or running a notebook.
-
-Add role ARNs to the `available_iam_roles` list in `iac/locals.tf`:
+Edit the `MANAGED_CONFIGURATIONS` env var in `iac/backend_list_configurations_lambda.tf`:
 
 ```hcl
-available_iam_roles = [
-  aws_iam_role.ecs_execution.arn,
-  "arn:aws:iam::123456789:role/my-custom-role",
-]
+MANAGED_CONFIGURATIONS = jsonencode([
+  {
+    id            = "default"
+    name          = "Default"
+    ecr_image_uri = "${module.build_base_image.ecr_url}:${local.image_tag}"
+    iam_role_arn  = aws_iam_role.ecs_execution.arn
+    vcpu          = local.task_default_vcpu
+    memory        = local.task_default_memory
+  },
+  {
+    id            = "my-custom"
+    name          = "My Custom Image"
+    ecr_image_uri = "123456789.dkr.ecr.eu-west-1.amazonaws.com/my-image:latest"
+    iam_role_arn  = aws_iam_role.my_custom_role.arn
+    vcpu          = 1024
+    memory        = 2048
+  },
+])
 ```
 
-Custom roles **must**:
+Custom IAM roles **must**:
 - Have a trust policy allowing `ecs-tasks.amazonaws.com` to assume the role
-- Have permission to pull the Docker image from ECR (`ecr:GetAuthorizationToken`, `ecr:BatchGetImage`, `ecr:GetDownloadUrlForLayer`)
+- Have permission to pull the Docker image from ECR
 - Have permission to write CloudWatch logs
 
-Refer to the default role in `iac/iam_role_ecs_execution.tf` for a working example.
+Refer to `iac/iam_role_ecs_execution.tf` for a working example.
 
 ## Base Docker Image
 
 The default Jupyter image is built from `code/docker_images/default/Dockerfile`:
 
-```dockerfile
-FROM jupyter/base-notebook:x86_64-ubuntu-22.04
-RUN apt-get update && apt-get install -y awscli
-RUN pip install --no-cache-dir papermill
-```
-
-It includes:
-- Jupyter Notebook
-- AWS CLI
-- Papermill (for notebook execution)
+- **Base**: `jupyter/base-notebook:x86_64-ubuntu-22.04`
+- **System packages**: awscli, curl
+- **Python tools**: papermill, uv, jupyterlab-lsp, jedi-language-server
+- **Default kernel**: Python with awswrangler, ipykernel (installed via uv in a dedicated venv)
 
 The image tag is a SHA1 hash of the build context, so any file change triggers a rebuild on `terraform apply`.
 
@@ -225,7 +224,7 @@ All routes require Cognito JWT authentication and are proxied through CloudFront
 | Method | Route | Description |
 |--------|-------|-------------|
 | `POST` | `/api/executions` | Run a notebook |
-| `GET` | `/api/executions/{id}/status` | Get execution status |
+| `GET` | `/api/executions/{execution_id}/status` | Get execution status |
 
 ### Sessions
 
@@ -233,21 +232,29 @@ All routes require Cognito JWT authentication and are proxied through CloudFront
 |--------|-------|-------------|
 | `POST` | `/api/sessions` | Launch a Jupyter session |
 | `GET` | `/api/sessions/me` | Get current user's session |
-| `GET` | `/api/sessions/{service_name}/status` | Get session status |
 | `DELETE` | `/api/sessions/{service_name}` | Stop a session |
+
+### Configurations
+
+| Method | Route | Description |
+|--------|-------|-------------|
+| `GET` | `/api/configurations` | List all configurations (seeds managed configs, launches missing validations) |
+| `POST` | `/api/configurations` | Add a custom configuration (launches dual validation) |
+| `PATCH` | `/api/configurations/{id}` | Update a configuration (clears and re-launches validations) |
+| `DELETE` | `/api/configurations/{id}` | Delete a custom configuration |
 
 ## Security
 
 ### Network
 
-- **WAF v2** (CloudFront scope) — Rate limiting (100 req/5min), geo-blocking (configurable), IP whitelist
+- **WAF v2** (CloudFront + ALB) — Rate limiting, geo-blocking (configurable), IP whitelist
 - **CloudFront origin verification** — Random secret in SSM Parameter Store, injected as custom header by CloudFront, verified by every Lambda
-- **API Gateway throttling** — 10 burst / 5 rate globally, 3 burst / 1 rate for expensive operations
-- **Security Group** — ECS tasks only accessible from whitelisted CIDRs
+- **API Gateway throttling** — 10 burst / 5 rate globally, 3 burst / 1 rate for expensive operations (session launch, notebook run)
+- **ALB** — Routes session traffic (`/s/{service_name}/*`) to the correct ECS task
 
 ### Authentication & Authorization
 
-- **Cognito User Pool** — Email-based signup with verification, OAuth2 authorization code flow with PKCE
+- **Cognito User Pool** — Email-based accounts, admin-only creation, OAuth2 PKCE flow
 - **JWT validation** — API Gateway JWT authorizer validates tokens on every request
 - **IAM roles** — Granular per-function Lambda roles, configurable ECS task execution roles
 
@@ -255,7 +262,7 @@ All routes require Cognito JWT authentication and are proxied through CloudFront
 
 - **S3** — Server-side encryption (AES-256), public access blocked
 - **DynamoDB** — Pay-per-request billing, no public access
-- **EFS** — Mounted only within VPC, root-owned shared access point
+- **EFS** — Mounted only within VPC, per-user access points
 
 ## Monitoring & Alerting
 
@@ -271,7 +278,6 @@ CloudWatch logs are collected for:
 - All Lambda functions (14-day retention)
 - API Gateway access logs (14-day retention)
 - ECS cluster (Container Insights enhanced mode)
-- Per-sandbox instance logs
 
 ## Resource Naming Convention
 
