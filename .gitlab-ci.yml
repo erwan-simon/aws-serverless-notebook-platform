@@ -18,4 +18,28 @@ stages:
   - format
   - security
   - deploy
+  - destroy
   - mirror_to_github
+
+
+destroy-service:
+  stage: destroy
+  script:
+    - cd iac
+    - terraform init -backend-config="bucket=$TERRAFORM_BACKEND_BUCKET" -backend-config="dynamodb_table=$TERRAFORM_BACKEND_DYNAMODB"
+    - terraform workspace new $CI_COMMIT_BRANCH || terraform workspace select $CI_COMMIT_BRANCH
+    - >-
+      terraform destroy
+      -target aws_lb.sessions
+      -target aws_lb_listener.sessions
+      -target aws_wafv2_web_acl.main
+      -target aws_wafv2_web_acl.alb
+      -target aws_cloudfront_distribution.main
+      --auto-approve
+  when: manual
+  except:
+    refs:
+      - tags
+
+terraform_destroy:
+  extends: .terraform_destroy
