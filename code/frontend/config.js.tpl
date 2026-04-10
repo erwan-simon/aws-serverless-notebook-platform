@@ -7,7 +7,8 @@ const CONFIG = {
   taskDefaultMemory: ${task_default_memory},
   taskMaxVcpu: ${task_max_vcpu},
   taskMaxMemory: ${task_max_memory},
-  sessionIdleTimeoutMinutes: ${session_idle_timeout_minutes}
+  sessionIdleTimeoutMinutes: ${session_idle_timeout_minutes},
+  labelRegex: "${label_regex}"
 };
 
 // context: "notebook" | "session" | null (no filter)
@@ -125,7 +126,7 @@ function wireConfigSelects(configSel, vcpuSel, memSel) {
 
 // --- Labels component ---
 
-const LABEL_REGEX = /^[a-z\u00e0-\u00f6\u00f8-\u00ff0-9\-]+$/;
+const LABEL_REGEX = new RegExp(CONFIG.labelRegex);
 
 async function loadAllLabels() {
   try {

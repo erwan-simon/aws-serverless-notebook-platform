@@ -13,4 +13,6 @@ locals {
 
   technical_owner_id     = "system"
   validation_notebook_id = "validation_hello_world"
+
+  label_regex = "^[a-z\\u00e0-\\u00f6\\u00f8-\\u00ff0-9\\-]{1,12}$"
 }

@@ -20,7 +20,7 @@ _origin_secret = _ssm.get_parameter(
 )["Parameter"]["Value"]
 assert _origin_secret, "Failed to retrieve origin verify secret from SSM"
 
-LABEL_REGEX = re.compile(r"^[a-z\u00e0-\u00f6\u00f8-\u00ff0-9\-]+$")
+LABEL_REGEX = re.compile(os.environ["LABEL_REGEX"])
 
 
 def _validate_labels(labels):

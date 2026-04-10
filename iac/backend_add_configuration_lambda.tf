@@ -39,6 +39,7 @@ module "add_configuration" {
   environment_variables = {
     CONFIGURATIONS_TABLE       = aws_dynamodb_table.configurations.name
     LABELS_TABLE               = aws_dynamodb_table.labels.name
+    LABEL_REGEX                = local.label_regex
     RUN_NOTEBOOK_FUNCTION_NAME = module.run_notebook.function_name
     VALIDATION_NOTEBOOK_ID     = local.validation_notebook_id
     TECHNICAL_OWNER_ID         = local.technical_owner_id

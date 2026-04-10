@@ -21,8 +21,8 @@ dialog .btn-cancel { background: #eee; color: #333; margin-left: 8px; }
 .loading { color: #999; font-style: italic; }
 .hidden { display: none; }
 
-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid #eee; }
+table { width: 100%; border-collapse: collapse; margin-top: 20px; table-layout: fixed; }
+th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid #eee; overflow: hidden; text-overflow: ellipsis; }
 th { background: #f7f7f7; font-weight: 600; }
 tr:hover { background: #f9f9f9; }
 
@@ -39,7 +39,8 @@ tr:hover { background: #f9f9f9; }
 .filters-bar { display: flex; gap: 10px; align-items: center; margin-top: 10px; flex-wrap: wrap; }
 .filters-bar select { padding: 6px 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; }
 
-.label-tag { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 11px; font-weight: 500; background: #ede7f6; color: #5e35b1; border: 1px solid #d1c4e9; margin: 1px 2px; white-space: nowrap; }
+.label-tag { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 11px; font-weight: 500; background: #ede7f6; color: #5e35b1; border: 1px solid #d1c4e9; margin: 1px 2px; white-space: nowrap; max-width: 12ch; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; }
+.labels-input .label-tag { max-width: none; overflow: visible; text-overflow: clip; }
 .label-tag .remove-label { cursor: pointer; margin-left: 4px; opacity: 0.6; font-size: 13px; }
 .label-tag .remove-label:hover { opacity: 1; }
 

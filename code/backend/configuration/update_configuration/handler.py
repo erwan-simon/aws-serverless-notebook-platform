@@ -8,7 +8,7 @@ import boto3
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-LABEL_REGEX = re.compile(r"^[a-z\u00e0-\u00f6\u00f8-\u00ff0-9\-]+$")
+LABEL_REGEX = re.compile(os.environ["LABEL_REGEX"])
 
 HEADERS = {
     "Content-Type": "application/json",

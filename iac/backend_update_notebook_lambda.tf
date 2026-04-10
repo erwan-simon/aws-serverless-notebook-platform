@@ -42,6 +42,7 @@ module "update_notebook" {
   environment_variables = {
     NOTEBOOKS_TABLE         = aws_dynamodb_table.notebooks.name
     LABELS_TABLE            = aws_dynamodb_table.labels.name
+    LABEL_REGEX             = local.label_regex
     SCHEDULER_ROLE_ARN      = aws_iam_role.eventbridge_scheduler.arn
     RUN_NOTEBOOK_LAMBDA_ARN = module.run_notebook.function_arn
     ENVIRONMENT_NAME        = local.environment_name

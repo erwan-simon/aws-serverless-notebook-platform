@@ -34,6 +34,7 @@ module "update_configuration" {
   environment_variables = {
     CONFIGURATIONS_TABLE = aws_dynamodb_table.configurations.name
     LABELS_TABLE         = aws_dynamodb_table.labels.name
+    LABEL_REGEX          = local.label_regex
   }
   tags_map = {
     Appli          = var.project_name

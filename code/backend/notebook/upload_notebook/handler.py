@@ -11,7 +11,7 @@ from botocore.exceptions import ClientError
 import nbformat
 from nbconvert import HTMLExporter
 
-LABEL_REGEX = re.compile(r"^[a-z\u00e0-\u00f6\u00f8-\u00ff0-9\-]+$")
+LABEL_REGEX = re.compile(os.environ["LABEL_REGEX"])
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)

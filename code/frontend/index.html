@@ -310,7 +310,7 @@
                     const date = new Date(nb.uploaded_at).toLocaleString();
                     const lastExec = nb.last_execution_date ? new Date(nb.last_execution_date).toLocaleString() : "";
                     const lastStatus = nb.last_execution_status || "";
-                    const labelsHtml = (nb.labels || []).map(function (l) { return '<span class="label-tag">' + l + '</span>'; }).join(" ");
+                    const labelsHtml = (nb.labels || []).map(function (l) { return '<span class="label-tag" title="' + l + '">' + l + '</span>'; }).join(" ");
                     html += "<tr>";
                     html += '<td><a class="nb-name-link" href="notebook.html?id=' + id + '">' + displayName + '</a></td>';
                     html += "<td>" + labelsHtml + "</td>";
