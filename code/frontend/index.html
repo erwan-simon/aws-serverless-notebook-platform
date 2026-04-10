@@ -6,7 +6,7 @@
     <title>Notebook Portal</title>
     <link rel="stylesheet" href="style.css">
     <style>
-        body { max-width: 900px; margin: 40px auto; padding: 0 20px; }
+        body { max-width: 1400px; margin: 40px auto; padding: 0 20px; }
         h1 { border-bottom: 2px solid #eee; padding-bottom: 10px; }
         .nb-name-link { display: inline-block; color: #7b1fa2; text-decoration: none; font-weight: 600; font-size: 15px; padding: 5px 14px; border-radius: 6px; border: 1px solid #e0d4f5; background: #faf5ff; transition: all 0.15s; }
         .nb-name-link:hover { background: #f3e5f5; border-color: #ce93d8; color: #6a1b9a; }
@@ -35,7 +35,8 @@
         .folder-row { cursor: pointer; }
         .folder-row:hover { background: #f3e5f9; }
         .folder-icon { margin-right: 6px; }
-        .menu-cell { position: relative; }
+        .menu-cell { position: relative; overflow: visible; text-align: right; }
+        #nbTable th:last-child { width: 50px; }
         .menu-unsched { color: #880e4f; }
     </style>
 </head>
