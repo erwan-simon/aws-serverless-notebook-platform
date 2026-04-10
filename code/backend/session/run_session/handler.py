@@ -3,6 +3,7 @@ import logging
 import os
 import re
 import secrets
+import uuid
 
 
 import boto3
@@ -95,7 +96,11 @@ def handler(event, context):
 
     jupyter_token = secrets.token_hex(32)
     service_name = _make_service_name(environment_name, user_sub)
-    base_url = f"/s/{service_name}/"
+    # Random UUID so the session URL cannot be guessed from the Cognito user ID,
+    # and so that sharing a session link doesn't grant permanent access to all
+    # subsequent sessions — recreating the session generates a new UUID.
+    session_id = str(uuid.uuid4())
+    base_url = f"/s/{service_name}/{session_id}/"
 
     # Find or create per-user EFS access point
     efs_client = boto3.client("efs")
@@ -287,7 +292,7 @@ def handler(event, context):
         Conditions=[
             {
                 "Field": "path-pattern",
-                "Values": [f"/s/{service_name}/*", f"/s/{service_name}"],
+                "Values": [f"{base_url}*", base_url.rstrip("/")],
             }
         ],
         Actions=[

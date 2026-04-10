@@ -4,6 +4,9 @@ import re
 
 import boto3
 
+# Pattern to extract --ServerApp.base_url value from the Jupyter command
+_BASE_URL_RE = re.compile(r"--ServerApp\.base_url=(\S+)")
+
 HEADERS = {
     "Content-Type": "application/json",
     "Access-Control-Allow-Origin": "*",
@@ -125,7 +128,13 @@ def handler(event, context):
             jupyter_token = env_var["value"]
             break
 
-    url = f"http://{alb_dns_name}/s/{service_name}/"
+    # Extract base_url (includes session UUID) from the Jupyter command
+    command = container_def.get("command", [""])[0]
+    match = _BASE_URL_RE.search(command)
+    assert match, f"Could not extract base_url from task definition command: {command}"
+    base_url = match.group(1)
+
+    url = f"http://{alb_dns_name}{base_url}"
     if jupyter_token:
         url += f"?token={jupyter_token}"
 
