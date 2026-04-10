@@ -1,9 +1,9 @@
 resource "aws_s3_object" "validation_notebook" {
   bucket       = aws_s3_bucket.notebooks.id
   key          = "validation/hello_world.ipynb"
-  source       = "${path.root}/../hello_world.ipynb"
+  source       = "${path.root}/../code/notebooks/validation/hello_world.ipynb"
   content_type = "application/x-ipynb+json"
-  etag         = filemd5("${path.root}/../hello_world.ipynb")
+  etag         = filemd5("${path.root}/../code/notebooks/validation/hello_world.ipynb")
 }
 
 resource "aws_dynamodb_table_item" "validation_notebook" {
