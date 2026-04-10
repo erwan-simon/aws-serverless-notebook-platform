@@ -24,15 +24,25 @@ def handler(event, context):
     labels_table = dynamodb.Table(os.environ["LABELS_TABLE"])
 
     used = set()
-    for item in _scan_all(notebooks_table, ProjectionExpression="#l", ExpressionAttributeNames={"#l": "labels"}):
+    for item in _scan_all(
+        notebooks_table,
+        ProjectionExpression="#l",
+        ExpressionAttributeNames={"#l": "labels"},
+    ):
         used.update(item.get("labels", []) or [])
-    for item in _scan_all(configurations_table, ProjectionExpression="#l", ExpressionAttributeNames={"#l": "labels"}):
+    for item in _scan_all(
+        configurations_table,
+        ProjectionExpression="#l",
+        ExpressionAttributeNames={"#l": "labels"},
+    ):
         used.update(item.get("labels", []) or [])
 
     existing = [item["name"] for item in _scan_all(labels_table)]
     unused = [name for name in existing if name not in used]
 
-    logger.info("Labels: %d used, %d existing, %d unused", len(used), len(existing), len(unused))
+    logger.info(
+        "Labels: %d used, %d existing, %d unused", len(used), len(existing), len(unused)
+    )
 
     for name in unused:
         labels_table.delete_item(Key={"name": name})

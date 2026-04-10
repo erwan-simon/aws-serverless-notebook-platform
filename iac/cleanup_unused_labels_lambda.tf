@@ -86,7 +86,7 @@ resource "aws_iam_role_policy" "cleanup_unused_labels" {
 
 data "aws_iam_policy_document" "cleanup_unused_labels_lambda" {
   statement {
-    actions   = ["dynamodb:Scan"]
+    actions = ["dynamodb:Scan"]
     resources = [
       aws_dynamodb_table.notebooks.arn,
       aws_dynamodb_table.configurations.arn,
