@@ -4,32 +4,18 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Configurations</title>
+    <link rel="stylesheet" href="style.css">
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; max-width: 900px; margin: 40px auto; padding: 0 20px; color: #333; }
+        body { max-width: 900px; margin: 40px auto; padding: 0 20px; }
         h1 { border-bottom: 2px solid #eee; padding-bottom: 10px; }
         .btn-back { display: inline-block; padding: 5px 14px; border-radius: 4px; text-decoration: none; font-size: 13px; background: #eee; color: #333; }
         .btn-add { display: inline-block; padding: 7px 18px; background: #fff; color: #444; border: 1px solid #ccc; border-radius: 4px; cursor: pointer; font-weight: 500; font-size: 14px; transition: all 0.15s; }
         .btn-add:hover { background: #f5f5f5; border-color: #999; color: #222; }
         .btn-delete { background: #ffebee; color: #c62828; cursor: pointer; border: none; font-size: 13px; padding: 5px 14px; border-radius: 4px; }
         .btn-delete:hover { background: #ffcdd2; }
-        .kebab-wrap { position: relative; }
-        .kebab-btn { background: none; border: 1px solid #ddd; border-radius: 4px; cursor: pointer; font-size: 18px; line-height: 1; padding: 2px 8px; color: #666; }
-        .kebab-btn:hover { background: #f0f0f0; }
-        .kebab-menu { display: none; position: absolute; right: 0; top: 100%; margin-top: 4px; background: #fff; border: 1px solid #ddd; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 10; min-width: 140px; overflow: hidden; }
-        .kebab-menu.open { display: block; }
-        .kebab-menu button { display: block; width: 100%; text-align: left; padding: 8px 14px; border: none; background: none; font-size: 13px; cursor: pointer; color: #333; }
-        .kebab-menu button:hover { background: #f5f5f5; }
-        .kebab-menu button.danger { color: #c62828; }
-        .kebab-menu button.danger:hover { background: #ffebee; }
-        .loading { color: #999; font-style: italic; }
-        .empty { color: #999; font-style: italic; padding: 20px 0; }
-        .header-bar { display: flex; align-items: center; justify-content: space-between; }
-        .status-badge { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; }
-        .status-validating { background: #fff3e0; color: #e65100; border: 1px solid #ffcc80; }
-        .status-validated { background: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7; }
-        .status-failed { background: #ffebee; color: #c62828; border: 1px solid #ef9a9a; }
         .ext-link { color: #7b1fa2; text-decoration: none; font-weight: 500; }
         .ext-link:hover { text-decoration: underline; }
+        .header-bar { display: flex; align-items: center; justify-content: space-between; }
         .cfg-list { display: flex; flex-direction: column; gap: 12px; margin-top: 20px; }
         .cfg-card { border: 1px solid #e0e0e0; border-radius: 8px; padding: 16px 20px; background: #fafafa; }
         .cfg-card:hover { border-color: #ccc; }
@@ -41,13 +27,6 @@
         .cfg-detail-label { color: #999; font-weight: 500; }
         .cfg-detail-value { color: #555; font-family: monospace; font-size: 12px; }
         .cfg-footer { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; font-size: 12px; color: #aaa; }
-        dialog { border: 1px solid #ddd; border-radius: 8px; padding: 24px; max-width: 500px; }
-        dialog::backdrop { background: rgba(0,0,0,0.3); }
-        dialog label { display: block; margin-top: 14px; font-weight: 600; font-size: 14px; }
-        dialog input[type="text"], dialog select { width: 100%; padding: 8px; margin-top: 6px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; box-sizing: border-box; }
-        dialog button { margin-top: 18px; padding: 8px 20px; border: none; border-radius: 4px; font-size: 14px; cursor: pointer; }
-        dialog .btn-submit { background: #7b1fa2; color: #fff; }
-        dialog .btn-cancel { background: #eee; color: #333; margin-left: 8px; }
     </style>
 </head>
 <body>
@@ -134,7 +113,6 @@
             }
 
             function ecsTaskConsoleUrl(taskArn) {
-                // arn:aws:ecs:eu-west-1:123456:task/cluster_name/task_id
                 const match = taskArn.match(/^arn:aws:ecs:([^:]+):[^:]+:task\/([^/]+)\/(.+)$/);
                 if (!match) return null;
                 const [, region, cluster, taskId] = match;
@@ -199,9 +177,9 @@
                     if (isManaged) {
                         html += '<span style="font-size:12px;color:#999;font-style:italic;">Terraform</span>';
                     }
-                    html += '<div class="kebab-wrap">';
-                    html += '<button class="kebab-btn" data-kebab>&#8942;</button>';
-                    html += '<div class="kebab-menu">';
+                    html += '<div class="menu-wrap">';
+                    html += '<button class="menu-toggle">&#8942;</button>';
+                    html += '<div class="menu-dropdown">';
                     html += '<button data-action="run-session" data-cfg=\'' + JSON.stringify(cfg).replace(/'/g, "&#39;") + '\'>Run Session</button>';
                     if (!isManaged) {
                         html += '<button data-action="edit" data-cfg=\'' + JSON.stringify(cfg).replace(/'/g, "&#39;") + '\'>Edit</button>';
@@ -280,20 +258,10 @@
                 btn.textContent = "Add";
             });
 
-            // Kebab menu toggle
-            content.addEventListener("click", (e) => {
-                const kebabBtn = e.target.closest("[data-kebab]");
-                if (kebabBtn) {
-                    e.stopPropagation();
-                    const menu = kebabBtn.nextElementSibling;
-                    document.querySelectorAll(".kebab-menu.open").forEach(m => { if (m !== menu) m.classList.remove("open"); });
-                    menu.classList.toggle("open");
-                    return;
-                }
-            });
-            document.addEventListener("click", () => document.querySelectorAll(".kebab-menu.open").forEach(m => m.classList.remove("open")));
+            // Menu toggle
+            initMenuToggle(content);
 
-            // Kebab menu actions
+            // Menu actions
             content.addEventListener("click", async (e) => {
                 const btn = e.target.closest("[data-action]");
                 if (!btn) return;

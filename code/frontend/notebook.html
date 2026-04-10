@@ -4,8 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Notebook Viewer</title>
+    <link rel="stylesheet" href="style.css">
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; margin: 0; padding: 0; }
+        body { margin: 0; padding: 0; }
         .toolbar { padding: 12px 20px; background: #f7f7f7; border-bottom: 1px solid #ddd; display: flex; align-items: center; gap: 12px; }
         .toolbar a, .toolbar button { text-decoration: none; padding: 8px 20px; border-radius: 6px; font-size: 14px; font-weight: 500; border: none; cursor: pointer; }
         .btn-back { background: #eee; color: #333; }
@@ -37,22 +38,8 @@
         .nb-meta-grid .meta-item { display: flex; align-items: center; gap: 5px; }
         .nb-meta-grid .meta-label { color: #999; font-weight: 500; }
         .nb-meta-grid .meta-value { color: #333; }
-        .status-badge { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; }
-        .status-succeeded { background: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7; }
-        .status-failed { background: #ffebee; color: #c62828; border: 1px solid #ef9a9a; }
-        .status-pending { background: #fff3e0; color: #e65100; border: 1px solid #ffcc80; }
-        .status-running { background: #e3f2fd; color: #1565c0; border: 1px solid #90caf9; }
         .sched-badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-family: monospace; background: #f3e5f5; color: #7b1fa2; border: 1px solid #ce93d8; }
         iframe { flex: 1; border: none; min-width: 0; }
-        .loading { padding: 40px; text-align: center; color: #999; font-style: italic; }
-        dialog { border: 1px solid #ddd; border-radius: 8px; padding: 24px; max-width: 400px; }
-        dialog::backdrop { background: rgba(0,0,0,0.3); }
-        dialog label { display: block; margin-top: 14px; font-weight: 600; font-size: 14px; }
-        dialog select { width: 100%; padding: 8px; margin-top: 6px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; }
-        dialog button { margin-top: 18px; padding: 8px 20px; border: none; border-radius: 4px; font-size: 14px; cursor: pointer; }
-        dialog .btn-submit { background: #7b1fa2; color: #fff; }
-        dialog .btn-cancel { background: #eee; color: #333; margin-left: 8px; }
-        .hidden { display: none; }
     </style>
 </head>
 <body>
@@ -134,8 +121,6 @@
                 });
             }
 
-            async function populateConfigSelect(sel, context) { await loadConfigurationOptions(sel, null, context); }
-
             // Show Run & Schedule buttons only when viewing a notebook by id (not an execution output)
             if (id) {
                 document.getElementById("runBtn").classList.remove("hidden");
@@ -147,23 +132,8 @@
                 const dialogVcpu = document.getElementById("dialogVcpu");
                 const dialogMemory = document.getElementById("dialogMemory");
 
-                await populateConfigSelect(dialogConfig, "notebook");
-                function applyDialogConfigDefaults() {
-                    const cfg = getSelectedConfig(dialogConfig);
-                    populateVcpuSelect(dialogVcpu, dialogMemory, cfg.vcpu, cfg.memory);
-                }
-                applyDialogConfigDefaults();
-                dialogConfig.addEventListener("change", applyDialogConfigDefaults);
-                dialogVcpu.addEventListener("change", () => populateMemorySelect(dialogVcpu, dialogMemory));
-
-                function applyDefaults(nb, cfgSel, vcpuSel, memSel) {
-                    if (nb.default_iam_role_arn && nb.default_ecr_image_uri) {
-                        const key = nb.default_ecr_image_uri + "||" + nb.default_iam_role_arn;
-                        cfgSel.value = key;
-                    }
-                    if (nb.default_vcpu) { vcpuSel.value = nb.default_vcpu; populateMemorySelect(vcpuSel, memSel); }
-                    if (nb.default_memory) memSel.value = nb.default_memory;
-                }
+                await loadConfigurationOptions(dialogConfig, null, "notebook");
+                wireConfigSelects(dialogConfig, dialogVcpu, dialogMemory);
 
                 document.getElementById("runBtn").addEventListener("click", () => dialog.showModal());
                 document.getElementById("dialogCancel").addEventListener("click", () => dialog.close());
@@ -201,14 +171,8 @@
                 const schedMemory = document.getElementById("schedMemory");
                 const schedCron = document.getElementById("schedCron");
 
-                await populateConfigSelect(schedConfig, "notebook");
-                function applySchedConfigDefaults() {
-                    const cfg = getSelectedConfig(schedConfig);
-                    populateVcpuSelect(schedVcpu, schedMemory, cfg.vcpu, cfg.memory);
-                }
-                applySchedConfigDefaults();
-                schedConfig.addEventListener("change", applySchedConfigDefaults);
-                schedVcpu.addEventListener("change", () => populateMemorySelect(schedVcpu, schedMemory));
+                await loadConfigurationOptions(schedConfig, null, "notebook");
+                wireConfigSelects(schedConfig, schedVcpu, schedMemory);
 
                 document.getElementById("schedBtn").addEventListener("click", () => schedDialog.showModal());
                 document.getElementById("schedCancel").addEventListener("click", () => schedDialog.close());
@@ -251,18 +215,6 @@
                         titleEl.innerHTML = '<a href="notebook.html?id=' + encodeURIComponent(ex.notebook_id) + '" style="color:#7b1fa2;text-decoration:none;">' + (ex.notebook_name || "Notebook") + '</a>';
                     } else {
                         titleEl.textContent = ex.notebook_name || "Notebook";
-                    }
-
-                    function durationStr(startedAt, finishedAt) {
-                        if (!startedAt) return "-";
-                        const start = new Date(startedAt).getTime();
-                        const end = finishedAt ? new Date(finishedAt).getTime() : Date.now();
-                        const s = Math.floor((end - start) / 1000);
-                        if (s < 60) return s + "s";
-                        if (s < 3600) return Math.floor(s / 60) + "min " + (s % 60) + "s";
-                        const h = Math.floor(s / 3600);
-                        const m = Math.floor((s % 3600) / 60);
-                        return h + "h " + (m ? m + "min" : "");
                     }
 
                     const stLower = (ex.status || "").toLowerCase();
@@ -321,8 +273,8 @@
                         meta.style.display = "block";
 
                         // Pre-fill run/schedule dialogs with notebook defaults
-                        applyDefaults(nb, dialogConfig, dialogVcpu, dialogMemory);
-                        applyDefaults(nb, schedConfig, schedVcpu, schedMemory);
+                        applyNotebookDefaults(nb, dialogConfig, dialogVcpu, dialogMemory);
+                        applyNotebookDefaults(nb, schedConfig, schedVcpu, schedMemory);
                     }
                 }
             }
@@ -371,16 +323,9 @@
                             for (const ex of executions) {
                                 const stLower = ex.status.toLowerCase();
                                 const started = ex.started_at ? new Date(ex.started_at).toLocaleString() : "";
-                                let duration = "";
-                                if (ex.started_at && ex.finished_at) {
-                                    const ms = new Date(ex.finished_at) - new Date(ex.started_at);
-                                    const s = Math.floor(ms / 1000);
-                                    if (s < 60) duration = s + "s";
-                                    else if (s < 3600) duration = Math.floor(s / 60) + "min " + (s % 60) + "s";
-                                    else { const hh = Math.floor(s / 3600); const mm = Math.floor((s % 3600) / 60); duration = hh + "h " + (mm ? mm + "min" : ""); }
-                                } else if (ex.started_at && (ex.status === "RUNNING" || ex.status === "PENDING")) {
-                                    duration = "running...";
-                                }
+                                const duration = (ex.started_at && !ex.finished_at && (ex.status === "RUNNING" || ex.status === "PENDING"))
+                                    ? "running..."
+                                    : (ex.started_at ? durationStr(ex.started_at, ex.finished_at) : "");
                                 h += '<div class="exec-item">';
                                 h += '<div class="exec-item-row"><span class="status-badge status-' + stLower + '">' + ex.status + '</span><span class="exec-item-meta">' + (ex.trigger_type || "manual") + '</span></div>';
                                 if (started) h += '<div class="exec-item-meta">' + started + (duration ? ' &middot; ' + duration : '') + '</div>';

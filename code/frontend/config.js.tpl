@@ -83,3 +83,57 @@ function populateMemorySelect(vcpuSel, memSel, defaultMem) {
     memSel.appendChild(opt);
   }
 }
+
+function uptimeStr(iso) {
+  const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+  if (diff < 60) return diff + "s";
+  if (diff < 3600) return Math.floor(diff / 60) + "min";
+  const h = Math.floor(diff / 3600);
+  const m = Math.floor((diff % 3600) / 60);
+  return h + "h " + (m ? m + "min" : "");
+}
+
+function durationStr(startedAt, finishedAt) {
+  if (!startedAt) return "-";
+  const start = new Date(startedAt).getTime();
+  const end = finishedAt ? new Date(finishedAt).getTime() : Date.now();
+  const s = Math.floor((end - start) / 1000);
+  if (s < 60) return s + "s";
+  if (s < 3600) return Math.floor(s / 60) + "min " + (s % 60) + "s";
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  return h + "h " + (m ? m + "min" : "");
+}
+
+function applyNotebookDefaults(nb, cfgSel, vcpuSel, memSel) {
+  if (nb.default_iam_role_arn && nb.default_ecr_image_uri) {
+    cfgSel.value = nb.default_ecr_image_uri + "||" + nb.default_iam_role_arn;
+  }
+  if (nb.default_vcpu) { vcpuSel.value = nb.default_vcpu; populateMemorySelect(vcpuSel, memSel); }
+  if (nb.default_memory) memSel.value = nb.default_memory;
+}
+
+function wireConfigSelects(configSel, vcpuSel, memSel) {
+  function apply() {
+    const cfg = getSelectedConfig(configSel);
+    populateVcpuSelect(vcpuSel, memSel, cfg.vcpu, cfg.memory);
+  }
+  apply();
+  configSel.addEventListener("change", apply);
+  vcpuSel.addEventListener("change", function () { populateMemorySelect(vcpuSel, memSel); });
+}
+
+function initMenuToggle(container) {
+  container.addEventListener("click", function (e) {
+    var toggle = e.target.closest(".menu-toggle");
+    if (!toggle) return;
+    e.stopPropagation();
+    var menu = toggle.nextElementSibling;
+    var wasOpen = menu.classList.contains("open");
+    document.querySelectorAll(".menu-dropdown.open").forEach(function (m) { m.classList.remove("open"); });
+    if (!wasOpen) menu.classList.add("open");
+  });
+  document.addEventListener("click", function () {
+    document.querySelectorAll(".menu-dropdown.open").forEach(function (m) { m.classList.remove("open"); });
+  });
+}

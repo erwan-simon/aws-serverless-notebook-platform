@@ -4,8 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Session Details</title>
+    <link rel="stylesheet" href="style.css">
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; max-width: 640px; margin: 40px auto; padding: 0 20px; color: #333; }
+        body { max-width: 640px; margin: 40px auto; padding: 0 20px; }
         h1 { font-size: 22px; margin-bottom: 24px; }
         .back-link { font-size: 13px; color: #888; text-decoration: none; }
         .back-link:hover { color: #555; }
@@ -56,10 +57,9 @@
         .btn-back { background: #f5f5f5; color: #555; border: 1px solid #ddd; }
         .btn-back:hover { background: #eee; }
 
-        /* Loading */
-        .spinner { width: 28px; height: 28px; border: 3px solid #eee; border-top: 3px solid #1565c0; border-radius: 50%; animation: spin 1s linear infinite; margin: 40px auto; }
-        @keyframes spin { to { transform: rotate(360deg); } }
-        .loading { text-align: center; color: #999; }
+        /* Override shared spinner for smaller size */
+        .spinner { width: 28px; height: 28px; border-width: 3px; margin: 40px auto; }
+        .loading { text-align: center; }
     </style>
 </head>
 <body>
@@ -125,17 +125,6 @@
     <script>
         (async function () {
             await window._authReady;
-
-            function vcpuLabel(v) { v = parseInt(v); return v < 1024 ? (v / 1024).toFixed(2).replace(/0$/, "") + " vCPU" : (v / 1024) + " vCPU"; }
-            function memLabel(m) { m = parseInt(m); return m >= 1024 ? (m / 1024) + " GB" : m + " MB"; }
-            function uptimeStr(iso) {
-                const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
-                if (diff < 60) return diff + "s";
-                if (diff < 3600) return Math.floor(diff / 60) + "min";
-                const h = Math.floor(diff / 3600);
-                const m = Math.floor((diff % 3600) / 60);
-                return h + "h " + (m ? m + "min" : "");
-            }
 
             function addLinkPill(container, icon, label, href) {
                 const a = document.createElement("a");
