@@ -27,7 +27,7 @@
         .session-actions { display: flex; gap: 8px; align-items: center; margin-left: auto; }
         .btn-stop { background: #ffebee; color: #c62828; cursor: pointer; border: none; font-size: 13px; padding: 5px 14px; border-radius: 4px; }
         .btn-open { background: #e8f5e9; color: #2e7d32; }
-        .cron-cell { font-family: monospace; font-size: 12px; color: #555; }
+        .cron-cell { font-family: monospace; font-size: 12px; color: #555; white-space: nowrap; }
         .breadcrumb { display: flex; gap: 4px; align-items: center; margin-bottom: 12px; font-size: 14px; flex-wrap: wrap; }
         .breadcrumb a { color: #7b1fa2; text-decoration: none; }
         .breadcrumb a:hover { text-decoration: underline; }
@@ -312,13 +312,13 @@
                     const lastStatus = nb.last_execution_status || "";
                     const labelsHtml = (nb.labels || []).map(function (l) { return '<span class="label-tag" title="' + l + '">' + l + '</span>'; }).join(" ");
                     html += "<tr>";
-                    html += '<td><a class="nb-name-link" href="notebook.html?id=' + id + '">' + displayName + '</a></td>';
+                    html += '<td title="' + displayName + '"><a class="nb-name-link" href="notebook.html?id=' + id + '">' + displayName + '</a></td>';
                     html += "<td>" + labelsHtml + "</td>";
-                    html += "<td>" + (nb.owner || "") + "</td>";
+                    html += '<td title="' + (nb.owner || "") + '">' + (nb.owner || "") + "</td>";
                     html += "<td>" + date + "</td>";
                     html += "<td>" + lastExec + "</td>";
                     html += "<td>" + (lastStatus ? '<span class="status-badge status-' + lastStatus.toLowerCase() + '">' + lastStatus + '</span>' : '') + "</td>";
-                    html += '<td class="cron-cell">' + (nb.schedule_cron || "") + "</td>";
+                    html += '<td class="cron-cell" title="' + (nb.schedule_cron || "") + '">' + (nb.schedule_cron || "") + "</td>";
                     html += '<td class="menu-cell">';
                     html += '<button class="menu-toggle">&#x22EE;</button>';
                     html += '<div class="menu-dropdown">';
