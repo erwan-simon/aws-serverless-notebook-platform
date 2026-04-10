@@ -65,6 +65,7 @@ def handler(event, context):
             "default_ecr_image_uri": nb.get("default_ecr_image_uri", ""),
             "default_vcpu": int(nb.get("default_vcpu", 0)),
             "default_memory": int(nb.get("default_memory", 0)),
+            "labels": nb.get("labels", []),
             "last_execution_date": "",
             "last_execution_status": "",
         }

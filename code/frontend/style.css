@@ -38,3 +38,20 @@ tr:hover { background: #f9f9f9; }
 
 .filters-bar { display: flex; gap: 10px; align-items: center; margin-top: 10px; flex-wrap: wrap; }
 .filters-bar select { padding: 6px 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; }
+
+.label-tag { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 11px; font-weight: 500; background: #ede7f6; color: #5e35b1; border: 1px solid #d1c4e9; margin: 1px 2px; white-space: nowrap; }
+.label-tag .remove-label { cursor: pointer; margin-left: 4px; opacity: 0.6; font-size: 13px; }
+.label-tag .remove-label:hover { opacity: 1; }
+
+.labels-input { position: relative; }
+.labels-input .labels-pills { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 4px; }
+.labels-input input { width: 100%; padding: 6px 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; box-sizing: border-box; }
+.labels-suggestions { position: absolute; left: 0; right: 0; top: 100%; background: #fff; border: 1px solid #ddd; border-radius: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 20; max-height: 150px; overflow-y: auto; display: none; }
+.labels-suggestions.open { display: block; }
+.labels-suggestions div { padding: 6px 10px; font-size: 13px; cursor: pointer; }
+.labels-suggestions div:hover { background: #f3e5f5; }
+
+.filter-labels-bar { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.filter-label-pill { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 12px; font-weight: 500; cursor: pointer; background: #f5f5f5; color: #666; border: 1px solid #ddd; transition: all 0.15s; }
+.filter-label-pill:hover { border-color: #bbb; }
+.filter-label-pill.active { background: #ede7f6; color: #5e35b1; border-color: #d1c4e9; }

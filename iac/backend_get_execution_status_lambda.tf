@@ -42,6 +42,5 @@ module "get_execution_status" {
     Env            = terraform.workspace
     git_repository = var.git_repository
   }
-  sns_alerting_topic_arn = aws_sns_topic.alerting.arn
-  depends_on             = [aws_ssm_parameter.cf_origin_secret]
+  depends_on = [aws_ssm_parameter.cf_origin_secret]
 }

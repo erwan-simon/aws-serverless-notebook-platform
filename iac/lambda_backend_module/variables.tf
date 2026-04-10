@@ -58,7 +58,3 @@ variable "tags_map" {
   default = {}
 }
 
-variable "sns_alerting_topic_arn" {
-  type        = string
-  description = "ARN of the SNS topic for alerting notifications"
-}

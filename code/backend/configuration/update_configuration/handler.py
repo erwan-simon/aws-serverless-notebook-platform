@@ -1,7 +1,14 @@
 import json
+import logging
 import os
+import re
 
 import boto3
+
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+
+LABEL_REGEX = re.compile(r"^[a-z\u00e0-\u00f6\u00f8-\u00ff0-9\-]+$")
 
 HEADERS = {
     "Content-Type": "application/json",
@@ -14,7 +21,7 @@ _origin_secret = _ssm.get_parameter(
 )["Parameter"]["Value"]
 assert _origin_secret, "Failed to retrieve origin verify secret from SSM"
 
-ALLOWED_FIELDS = {"name", "ecr_image_uri", "iam_role_arn", "vcpu", "memory", "description"}
+ALLOWED_FIELDS = {"name", "ecr_image_uri", "iam_role_arn", "vcpu", "memory", "description", "labels"}
 
 
 def handler(event, context):
@@ -42,11 +49,23 @@ def handler(event, context):
             val = body[field]
             if field in ("vcpu", "memory"):
                 val = int(val)
+            elif field == "labels":
+                if not isinstance(val, list):
+                    return {"statusCode": 400, "headers": HEADERS, "body": json.dumps({"error": "labels must be a list"})}
+                for label in val:
+                    if not isinstance(label, str) or not LABEL_REGEX.match(label):
+                        return {"statusCode": 400, "headers": HEADERS, "body": json.dumps({"error": f"Invalid label: {label}"})}
+                val = list(set(val))
             updates[field] = val
 
-    # Always clear validation IDs so they get re-launched by list_configurations
-    updates["validation_notebook_execution_id"] = None
-    updates["validation_session_execution_id"] = None
+    # Clear validation IDs only if infra-related fields actually changed
+    infra_changed = any(
+        updates.get(f) is not None and updates[f] != item.get(f)
+        for f in {"ecr_image_uri", "iam_role_arn", "vcpu", "memory"}
+    )
+    if infra_changed:
+        updates["validation_notebook_execution_id"] = None
+        updates["validation_session_execution_id"] = None
 
     expr_set = []
     expr_remove = []
@@ -72,5 +91,12 @@ def handler(event, context):
         ExpressionAttributeNames=attr_names,
         **({"ExpressionAttributeValues": attr_values} if attr_values else {}),
     )
+
+    # Sync new labels to centralized labels table
+    if "labels" in updates and updates["labels"]:
+        dynamodb_res = boto3.resource("dynamodb")
+        labels_table = dynamodb_res.Table(os.environ["LABELS_TABLE"])
+        for label in updates["labels"]:
+            labels_table.put_item(Item={"name": label})
 
     return {"statusCode": 200, "headers": HEADERS, "body": json.dumps({"message": "Configuration updated"})}

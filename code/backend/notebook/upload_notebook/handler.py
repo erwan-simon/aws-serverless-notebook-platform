@@ -2,12 +2,16 @@ import base64
 import json
 import logging
 import os
+import re
 import uuid
 from datetime import datetime, timezone
 
 import boto3
+from botocore.exceptions import ClientError
 import nbformat
 from nbconvert import HTMLExporter
+
+LABEL_REGEX = re.compile(r"^[a-z\u00e0-\u00f6\u00f8-\u00ff0-9\-]+$")
 
 logger = logging.getLogger()
 
@@ -84,6 +88,13 @@ def handler(event, context):
         if val:
             item[key] = int(val) if key in ("default_vcpu", "default_memory") else val
 
+    labels = body.get("labels", [])
+    if labels:
+        for label in labels:
+            if not isinstance(label, str) or not LABEL_REGEX.match(label):
+                return {"statusCode": 400, "headers": HEADERS, "body": json.dumps({"error": f"Invalid label: {label}"})}
+        item["labels"] = list(set(labels))
+
     try:
         table.put_item(Item=item)
     except Exception as e:
@@ -93,6 +104,66 @@ def handler(event, context):
         except Exception as rollback_err:
             logger.error("S3 rollback also failed for %s: %s", s3_key, rollback_err)
         return {"statusCode": 500, "headers": HEADERS, "body": json.dumps({"error": "Failed to register notebook"})}
+
+    # Sync new labels to centralized labels table
+    if labels:
+        labels_table = dynamodb.Table(os.environ["LABELS_TABLE"])
+        for label in item["labels"]:
+            labels_table.put_item(Item={"name": label})
+
+    # Create schedule if cron expression provided
+    schedule_cron = body.get("schedule_cron", "")
+    if schedule_cron:
+        schedule_iam = body.get("schedule_iam_role_arn", "")
+        schedule_image = body.get("schedule_ecr_image_uri", "")
+        schedule_vcpu = body.get("schedule_vcpu")
+        schedule_memory = body.get("schedule_memory")
+
+        if schedule_iam and schedule_image:
+            environment_name = os.environ["ENVIRONMENT_NAME"]
+            scheduler_role_arn = os.environ["SCHEDULER_ROLE_ARN"]
+            run_notebook_lambda_arn = os.environ["RUN_NOTEBOOK_LAMBDA_ARN"]
+            schedule_name = f"{environment_name}_nb_{notebook_id[:8]}"
+
+            scheduler = boto3.client("scheduler")
+            try:
+                scheduler.create_schedule(
+                    Name=schedule_name,
+                    ScheduleExpression=schedule_cron,
+                    ScheduleExpressionTimezone="UTC",
+                    FlexibleTimeWindow={"Mode": "OFF"},
+                    Target={
+                        "Arn": run_notebook_lambda_arn,
+                        "RoleArn": scheduler_role_arn,
+                        "Input": json.dumps({
+                            k: v for k, v in {
+                                "source": "scheduler",
+                                "notebook_id": notebook_id,
+                                "iam_role_arn": schedule_iam,
+                                "ecr_image_uri": schedule_image,
+                                "owner_id": owner_id,
+                                "owner_email": owner_email,
+                                "vcpu": schedule_vcpu,
+                                "memory": schedule_memory,
+                            }.items() if v is not None
+                        }),
+                    },
+                    ActionAfterCompletion="NONE",
+                )
+                table.update_item(
+                    Key={"id": notebook_id},
+                    UpdateExpression="SET schedule_cron = :cron, schedule_role_arn = :role, schedule_image_uri = :image, schedule_name = :name, schedule_vcpu = :vcpu, schedule_memory = :memory",
+                    ExpressionAttributeValues={
+                        ":cron": schedule_cron,
+                        ":role": schedule_iam,
+                        ":image": schedule_image,
+                        ":name": schedule_name,
+                        ":vcpu": schedule_vcpu if schedule_vcpu is not None else 0,
+                        ":memory": schedule_memory if schedule_memory is not None else 0,
+                    },
+                )
+            except ClientError as e:
+                logger.error("Failed to create schedule for notebook %s: %s", notebook_id, e)
 
     return {
         "statusCode": 200,

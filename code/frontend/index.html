@@ -71,6 +71,8 @@
         <h3>Upload Notebook</h3>
         <label for="uploadName">Name</label>
         <input type="text" id="uploadName">
+        <label>Labels <span style="font-weight:400; color:#999;">(optional)</span></label>
+        <div id="uploadLabelsContainer"></div>
         <details style="margin-top: 14px; font-size: 13px;">
             <summary style="cursor: pointer; font-weight: 600; color: #555;">Default configuration <span style="font-weight: 400; color: #999;">(optional)</span></summary>
             <div style="margin-top: 10px;">
@@ -80,6 +82,19 @@
                 <select id="uploadVcpu"></select>
                 <label for="uploadMemory">Memory</label>
                 <select id="uploadMemory"></select>
+            </div>
+        </details>
+        <details style="margin-top: 8px; font-size: 13px;">
+            <summary style="cursor: pointer; font-weight: 600; color: #555;">Schedule <span style="font-weight: 400; color: #999;">(optional)</span></summary>
+            <div style="margin-top: 10px;">
+                <label for="uploadSchedCron">Cron Expression <a href="https://docs.aws.amazon.com/scheduler/latest/UserGuide/schedule-types.html" target="_blank" style="font-weight:400; font-size:12px; color:#1565c0; text-decoration:none;">syntax reference &#8599;</a></label>
+                <input type="text" id="uploadSchedCron" placeholder="cron(0 9 * * ? *)">
+                <label for="uploadSchedConfig">Configuration</label>
+                <select id="uploadSchedConfig"></select>
+                <label for="uploadSchedVcpu">vCPU</label>
+                <select id="uploadSchedVcpu"></select>
+                <label for="uploadSchedMemory">Memory</label>
+                <select id="uploadSchedMemory"></select>
             </div>
         </details>
         <div style="margin-top: 18px;">
@@ -102,19 +117,30 @@
         </div>
     </dialog>
 
-    <dialog id="scheduleDialog">
-        <h3>Schedule Notebook</h3>
-        <label for="schedCron">Cron Expression <a href="https://docs.aws.amazon.com/scheduler/latest/UserGuide/schedule-types.html" target="_blank" style="font-weight:400; font-size:12px; color:#1565c0; text-decoration:none;">syntax reference &#8599;</a></label>
-        <input type="text" id="schedCron" placeholder="cron(0 9 * * ? *)">
-        <label for="schedConfig">Configuration</label>
-        <select id="schedConfig"></select>
-        <label for="schedVcpu">vCPU</label>
-        <select id="schedVcpu"></select>
-        <label for="schedMemory">Memory</label>
-        <select id="schedMemory"></select>
+    <dialog id="editNotebookDialog">
+        <h3>Edit Notebook</h3>
+        <input type="hidden" id="editNbId">
+        <label>Labels</label>
+        <div id="editNbLabelsContainer"></div>
+        <details style="margin-top: 14px; font-size: 13px;">
+            <summary style="cursor: pointer; font-weight: 600; color: #555;">Schedule</summary>
+            <div style="margin-top: 10px;">
+                <label for="editNbCron">Cron Expression <a href="https://docs.aws.amazon.com/scheduler/latest/UserGuide/schedule-types.html" target="_blank" style="font-weight:400; font-size:12px; color:#1565c0; text-decoration:none;">syntax reference &#8599;</a></label>
+                <input type="text" id="editNbCron" placeholder="cron(0 9 * * ? *)">
+                <label for="editNbSchedConfig">Configuration</label>
+                <select id="editNbSchedConfig"></select>
+                <label for="editNbSchedVcpu">vCPU</label>
+                <select id="editNbSchedVcpu"></select>
+                <label for="editNbSchedMemory">Memory</label>
+                <select id="editNbSchedMemory"></select>
+                <div style="margin-top: 10px;">
+                    <button type="button" class="btn-delete" id="editNbUnschedule" style="display:none;">Remove schedule</button>
+                </div>
+            </div>
+        </details>
         <div style="margin-top: 18px;">
-            <button class="btn-submit" id="schedSubmit">Schedule</button>
-            <button class="btn-cancel" id="schedCancel">Cancel</button>
+            <button class="btn-submit" id="editNbSubmit">Save</button>
+            <button class="btn-cancel" id="editNbCancel">Cancel</button>
         </div>
     </dialog>
     <script src="config.js"></script>
@@ -252,6 +278,9 @@
             const owners = [...new Set(files.map(nb => nb.owner || "").filter(Boolean))].sort();
             const statuses = [...new Set(files.map(nb => nb.last_execution_status || "").filter(Boolean))].sort();
 
+            // Collect unique labels across all files
+            const allFileLabels = [...new Set(files.flatMap(nb => nb.labels || []))].sort();
+
             let filtersHtml = '<div class="filters-bar">';
             filtersHtml += '<select id="filterOwner"><option value="">All owners</option>';
             for (const o of owners) filtersHtml += '<option value="' + o + '">' + o + '</option>';
@@ -260,16 +289,19 @@
             for (const s of statuses) filtersHtml += '<option value="' + s + '">' + s + '</option>';
             filtersHtml += '</select>';
             filtersHtml += '<select id="filterScheduled"><option value="">All</option><option value="yes">Scheduled</option><option value="no">Not scheduled</option></select>';
+            filtersHtml += '<select id="filterLabel"><option value="">All labels</option>';
+            for (const l of allFileLabels) filtersHtml += '<option value="' + l + '">' + l + '</option>';
+            filtersHtml += '</select>';
             filtersHtml += '<label class="btn btn-upload" id="uploadLabel" style="margin-left:auto;">&#x2795; Add Notebook<input type="file" id="fileInput" accept=".ipynb"></label>';
             filtersHtml += '<span class="upload-status" id="uploadStatus"></span>';
             filtersHtml += '</div>';
 
             function renderTable(folderList, fileList) {
-                let html = "<table><thead><tr><th>Name</th><th>Owner</th><th>Uploaded</th><th>Last Execution</th><th>Last Status</th><th>Schedule</th><th></th></tr></thead><tbody>";
+                let html = "<table><thead><tr><th>Name</th><th>Labels</th><th>Owner</th><th>Uploaded</th><th>Last Execution</th><th>Last Status</th><th>Schedule</th><th></th></tr></thead><tbody>";
                 for (const folder of folderList) {
                     const folderPath = currentPath + folder + "/";
                     html += '<tr class="folder-row" data-path="' + folderPath + '">';
-                    html += '<td colspan="7"><span class="folder-icon">&#x1F4C1;</span>' + folder + '</td>';
+                    html += '<td colspan="8"><span class="folder-icon">&#x1F4C1;</span>' + folder + '</td>';
                     html += "</tr>";
                 }
                 for (const nb of fileList) {
@@ -278,8 +310,10 @@
                     const date = new Date(nb.uploaded_at).toLocaleString();
                     const lastExec = nb.last_execution_date ? new Date(nb.last_execution_date).toLocaleString() : "";
                     const lastStatus = nb.last_execution_status || "";
+                    const labelsHtml = (nb.labels || []).map(function (l) { return '<span class="label-tag">' + l + '</span>'; }).join(" ");
                     html += "<tr>";
                     html += '<td><a class="nb-name-link" href="notebook.html?id=' + id + '">' + displayName + '</a></td>';
+                    html += "<td>" + labelsHtml + "</td>";
                     html += "<td>" + (nb.owner || "") + "</td>";
                     html += "<td>" + date + "</td>";
                     html += "<td>" + lastExec + "</td>";
@@ -290,17 +324,14 @@
                     html += '<div class="menu-dropdown">';
                     html += '<a href="notebook.html?id=' + id + '">View</a>';
                     html += '<button class="btn-exec" data-id="' + id + '">Run</button>';
-                    html += '<button class="btn-schedule" data-id="' + id + '" data-cron="' + (nb.schedule_cron || "").replace(/"/g, "&quot;") + '">Schedule</button>';
-                    if (nb.schedule_cron) {
-                        html += '<button class="menu-unsched btn-unsched" data-id="' + id + '">Unschedule</button>';
-                    }
+                    html += '<button class="btn-edit-nb" data-id="' + id + '" data-labels=\'' + JSON.stringify(nb.labels || []).replace(/'/g, "&#39;") + '\' data-cron="' + (nb.schedule_cron || "").replace(/"/g, "&quot;") + '">Edit</button>';
                     html += '<a href="executions.html?notebook_id=' + id + '">Executions</a>';
                     html += '<button class="danger btn-delete" data-id="' + id + '">Delete</button>';
                     html += "</div></td>";
                     html += "</tr>";
                 }
                 if (folderList.length === 0 && fileList.length === 0) {
-                    html += '<tr><td colspan="7" style="color:#999;font-style:italic;">Empty folder</td></tr>';
+                    html += '<tr><td colspan="8" style="color:#999;font-style:italic;">Empty folder</td></tr>';
                 }
                 html += "</tbody></table>";
                 return html;
@@ -310,11 +341,13 @@
                 const ownerVal = document.getElementById("filterOwner").value;
                 const statusVal = document.getElementById("filterStatus").value;
                 const schedVal = document.getElementById("filterScheduled").value;
+                const labelVal = document.getElementById("filterLabel").value;
                 const filtered = files.filter(nb => {
                     if (ownerVal && (nb.owner || "") !== ownerVal) return false;
                     if (statusVal && (nb.last_execution_status || "") !== statusVal) return false;
                     if (schedVal === "yes" && !nb.schedule_cron) return false;
                     if (schedVal === "no" && nb.schedule_cron) return false;
+                    if (labelVal && !(nb.labels || []).includes(labelVal)) return false;
                     return true;
                 });
                 document.getElementById("nbTable").innerHTML = renderTable(folders, filtered);
@@ -345,6 +378,10 @@
                 reader.readAsArrayBuffer(file);
             });
 
+            // Load labels for autocomplete
+            const allLabels = await loadAllLabels();
+            const uploadLabelsInput = createLabelsInput(document.getElementById("uploadLabelsContainer"), allLabels);
+
             // Populate upload config selects
             const uploadConfig = document.getElementById("uploadConfig");
             const uploadVcpu = document.getElementById("uploadVcpu");
@@ -361,6 +398,13 @@
             populateVcpuSelect(uploadVcpu, uploadMemory);
             uploadVcpu.addEventListener("change", () => populateMemorySelect(uploadVcpu, uploadMemory));
 
+            // Upload schedule config selects
+            const uploadSchedConfig = document.getElementById("uploadSchedConfig");
+            const uploadSchedVcpu = document.getElementById("uploadSchedVcpu");
+            const uploadSchedMemory = document.getElementById("uploadSchedMemory");
+            await loadConfigurationOptions(uploadSchedConfig, null, "notebook");
+            wireConfigSelects(uploadSchedConfig, uploadSchedVcpu, uploadSchedMemory);
+
             document.getElementById("uploadCancel").addEventListener("click", () => {
                 uploadDialog.close();
                 document.getElementById("fileInput").value = "";
@@ -370,16 +414,28 @@
                 const btn = document.getElementById("uploadSubmit");
                 btn.disabled = true;
                 btn.textContent = "Uploading...";
+                const uploadBody = {
+                    filename: uploadName.value,
+                    content: uploadFileData,
+                    ...(uploadConfig.value ? { default_iam_role_arn: getSelectedConfig(uploadConfig).iam_role_arn, default_ecr_image_uri: getSelectedConfig(uploadConfig).ecr_image_uri } : {}),
+                    default_vcpu: uploadVcpu.value ? parseInt(uploadVcpu.value) : undefined,
+                    default_memory: uploadMemory.value ? parseInt(uploadMemory.value) : undefined,
+                };
+                const uLabels = uploadLabelsInput.getLabels();
+                if (uLabels.length) uploadBody.labels = uLabels;
+                const uCron = document.getElementById("uploadSchedCron").value.trim();
+                if (uCron) {
+                    const sCfg = getSelectedConfig(uploadSchedConfig);
+                    uploadBody.schedule_cron = uCron;
+                    uploadBody.schedule_iam_role_arn = sCfg.iam_role_arn;
+                    uploadBody.schedule_ecr_image_uri = sCfg.ecr_image_uri;
+                    uploadBody.schedule_vcpu = parseInt(uploadSchedVcpu.value);
+                    uploadBody.schedule_memory = parseInt(uploadSchedMemory.value);
+                }
                 const uploadRes = await fetch(CONFIG.apiBaseUrl + "/api/notebooks", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        filename: uploadName.value,
-                        content: uploadFileData,
-                        ...(uploadConfig.value ? { default_iam_role_arn: getSelectedConfig(uploadConfig).iam_role_arn, default_ecr_image_uri: getSelectedConfig(uploadConfig).ecr_image_uri } : {}),
-                        default_vcpu: uploadVcpu.value ? parseInt(uploadVcpu.value) : undefined,
-                        default_memory: uploadMemory.value ? parseInt(uploadMemory.value) : undefined,
-                    }),
+                    body: JSON.stringify(uploadBody),
                 });
                 if (uploadRes.ok) {
                     uploadDialog.close();
@@ -402,6 +458,7 @@
             document.getElementById("filterOwner").addEventListener("change", applyFilters);
             document.getElementById("filterStatus").addEventListener("change", applyFilters);
             document.getElementById("filterScheduled").addEventListener("change", applyFilters);
+            document.getElementById("filterLabel").addEventListener("change", applyFilters);
 
             // Menu toggle
             initMenuToggle(content);
@@ -478,73 +535,87 @@
                     btn.textContent = "Run";
                 }
             });
-            // Schedule dialog
-            const schedDialog = document.getElementById("scheduleDialog");
-            const schedConfig = document.getElementById("schedConfig");
-            const schedCron = document.getElementById("schedCron");
-            const schedVcpu = document.getElementById("schedVcpu");
-            const schedMemory = document.getElementById("schedMemory");
-            let schedNotebookId = null;
+            // Edit notebook dialog (labels + schedule)
+            const editNbDialog = document.getElementById("editNotebookDialog");
+            const editNbLabelsInput = createLabelsInput(document.getElementById("editNbLabelsContainer"), allLabels);
+            const editNbSchedConfig = document.getElementById("editNbSchedConfig");
+            const editNbSchedVcpu = document.getElementById("editNbSchedVcpu");
+            const editNbSchedMemory = document.getElementById("editNbSchedMemory");
+            const editNbCron = document.getElementById("editNbCron");
+            const editNbUnschedule = document.getElementById("editNbUnschedule");
 
-            await loadConfigurationOptions(schedConfig, null, "notebook");
-            wireConfigSelects(schedConfig, schedVcpu, schedMemory);
+            await loadConfigurationOptions(editNbSchedConfig, null, "notebook");
+            wireConfigSelects(editNbSchedConfig, editNbSchedVcpu, editNbSchedMemory);
+
+            let editNbId = null;
+            let editNbHadSchedule = false;
 
             content.addEventListener("click", (e) => {
-                if (!e.target.classList.contains("btn-schedule")) return;
-                schedNotebookId = e.target.dataset.id;
-                schedCron.value = e.target.dataset.cron || "";
-                // Reset to global defaults first
-                schedConfig.selectedIndex = 0;
-                const sCfg = getSelectedConfig(schedConfig);
-                populateVcpuSelect(schedVcpu, schedMemory, sCfg.vcpu, sCfg.memory);
-                // Apply notebook defaults if any
-                const nb = notebookMap[decodeURIComponent(schedNotebookId)];
-                if (nb) applyNotebookDefaults(nb, schedConfig, schedVcpu, schedMemory);
-                schedDialog.showModal();
+                if (!e.target.classList.contains("btn-edit-nb")) return;
+                editNbId = e.target.dataset.id;
+                const labels = JSON.parse(e.target.dataset.labels || "[]");
+                const cron = e.target.dataset.cron || "";
+                editNbLabelsInput.setLabels(labels);
+                editNbCron.value = cron;
+                editNbHadSchedule = !!cron;
+                editNbUnschedule.style.display = cron ? "inline-block" : "none";
+                // Reset schedule config to defaults
+                editNbSchedConfig.selectedIndex = 0;
+                const sCfg = getSelectedConfig(editNbSchedConfig);
+                populateVcpuSelect(editNbSchedVcpu, editNbSchedMemory, sCfg.vcpu, sCfg.memory);
+                const nb = notebookMap[decodeURIComponent(editNbId)];
+                if (nb) applyNotebookDefaults(nb, editNbSchedConfig, editNbSchedVcpu, editNbSchedMemory);
+                editNbDialog.showModal();
             });
 
-            document.getElementById("schedCancel").addEventListener("click", () => schedDialog.close());
+            document.getElementById("editNbCancel").addEventListener("click", () => editNbDialog.close());
 
-            document.getElementById("schedSubmit").addEventListener("click", async () => {
-                const btn = document.getElementById("schedSubmit");
-                btn.disabled = true;
-                btn.textContent = "Scheduling...";
-                const schedRes = await fetch(CONFIG.apiBaseUrl + "/api/notebooks/" + encodeURIComponent(schedNotebookId) + "/schedule", {
-                    method: "POST",
+            editNbUnschedule.addEventListener("click", async () => {
+                editNbUnschedule.disabled = true;
+                editNbUnschedule.textContent = "Removing...";
+                const res = await fetch(CONFIG.apiBaseUrl + "/api/notebooks/" + encodeURIComponent(editNbId), {
+                    method: "PATCH",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        cron_expression: schedCron.value,
-                        ...getSelectedConfig(schedConfig),
-                        vcpu: parseInt(schedVcpu.value),
-                        memory: parseInt(schedMemory.value),
-                    }),
+                    body: JSON.stringify({ unschedule: true }),
                 });
-                if (schedRes.ok) {
-                    schedDialog.close();
+                if (res.ok) {
+                    editNbDialog.close();
                     window.location.reload();
                 } else {
-                    const err = await schedRes.json().catch(() => ({}));
-                    alert("Schedule failed: " + (err.error || schedRes.status));
-                    btn.disabled = false;
-                    btn.textContent = "Schedule";
+                    const err = await res.json().catch(() => ({}));
+                    alert("Unschedule failed: " + (err.error || res.status));
+                    editNbUnschedule.disabled = false;
+                    editNbUnschedule.textContent = "Remove schedule";
                 }
             });
 
-            // Unschedule handler
-            content.addEventListener("click", async (e) => {
-                if (!e.target.classList.contains("btn-unsched")) return;
-                if (!confirm("Remove schedule for this notebook?")) return;
-                const nbId = e.target.dataset.id;
-                e.target.disabled = true;
-                e.target.textContent = "Removing...";
-                const unschedRes = await fetch(CONFIG.apiBaseUrl + "/api/notebooks/" + encodeURIComponent(nbId) + "/schedule", { method: "DELETE" });
-                if (unschedRes.ok) {
+            document.getElementById("editNbSubmit").addEventListener("click", async () => {
+                const btn = document.getElementById("editNbSubmit");
+                btn.disabled = true;
+                btn.textContent = "Saving...";
+                const patchBody = { labels: editNbLabelsInput.getLabels() };
+                const cronVal = editNbCron.value.trim();
+                if (cronVal) {
+                    const sCfg = getSelectedConfig(editNbSchedConfig);
+                    patchBody.schedule_cron = cronVal;
+                    patchBody.schedule_iam_role_arn = sCfg.iam_role_arn;
+                    patchBody.schedule_ecr_image_uri = sCfg.ecr_image_uri;
+                    patchBody.schedule_vcpu = parseInt(editNbSchedVcpu.value);
+                    patchBody.schedule_memory = parseInt(editNbSchedMemory.value);
+                }
+                const res = await fetch(CONFIG.apiBaseUrl + "/api/notebooks/" + encodeURIComponent(editNbId), {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(patchBody),
+                });
+                if (res.ok) {
+                    editNbDialog.close();
                     window.location.reload();
                 } else {
-                    const err = await unschedRes.json().catch(() => ({}));
-                    alert("Unschedule failed: " + (err.error || unschedRes.status));
-                    e.target.disabled = false;
-                    e.target.textContent = "Unschedule";
+                    const err = await res.json().catch(() => ({}));
+                    alert("Update failed: " + (err.error || res.status));
+                    btn.disabled = false;
+                    btn.textContent = "Save";
                 }
             });
         })();

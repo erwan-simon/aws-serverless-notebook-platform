@@ -1,12 +1,16 @@
 import json
 import logging
 import os
+import re
 import uuid
 from datetime import datetime, timezone
 
 import boto3
 
+LABEL_REGEX = re.compile(r"^[a-z\u00e0-\u00f6\u00f8-\u00ff0-9\-]+$")
+
 logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
 HEADERS = {
     "Content-Type": "application/json",
@@ -28,6 +32,7 @@ def handler(event, context):
     created_by = claims.get("email", "")
 
     body = json.loads(event.get("body", "{}"))
+    logger.info("Adding configuration: name=%s, image=%s, role=%s", body.get("name"), body.get("ecr_image_uri"), body.get("iam_role_arn"))
     name = body.get("name", "").strip()
     ecr_image_uri = body.get("ecr_image_uri", "").strip()
     iam_role_arn = body.get("iam_role_arn", "").strip()
@@ -87,6 +92,13 @@ def handler(event, context):
     dynamodb = boto3.resource("dynamodb")
     table = dynamodb.Table(os.environ["CONFIGURATIONS_TABLE"])
 
+    labels = body.get("labels", [])
+    if labels:
+        for label in labels:
+            if not isinstance(label, str) or not LABEL_REGEX.match(label):
+                return {"statusCode": 400, "headers": HEADERS, "body": json.dumps({"error": f"Invalid label: {label}"})}
+        labels = list(set(labels))
+
     item = {
         "id": str(uuid.uuid4()),
         "name": name,
@@ -101,7 +113,14 @@ def handler(event, context):
     }
     if description:
         item["description"] = description
+    if labels:
+        item["labels"] = labels
 
     table.put_item(Item=item)
+
+    if labels:
+        labels_table = dynamodb.Table(os.environ["LABELS_TABLE"])
+        for label in labels:
+            labels_table.put_item(Item={"name": label})
 
     return {"statusCode": 200, "headers": HEADERS, "body": json.dumps(item)}

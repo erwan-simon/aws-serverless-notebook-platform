@@ -4,6 +4,10 @@ data "aws_iam_policy_document" "add_configuration_lambda" {
     resources = [aws_dynamodb_table.configurations.arn]
   }
   statement {
+    actions   = ["dynamodb:PutItem"]
+    resources = [aws_dynamodb_table.labels.arn]
+  }
+  statement {
     actions   = ["lambda:InvokeFunction"]
     resources = [module.run_notebook.function_arn]
   }
@@ -34,6 +38,7 @@ module "add_configuration" {
   iam_policy_json               = data.aws_iam_policy_document.add_configuration_lambda.json
   environment_variables = {
     CONFIGURATIONS_TABLE       = aws_dynamodb_table.configurations.name
+    LABELS_TABLE               = aws_dynamodb_table.labels.name
     RUN_NOTEBOOK_FUNCTION_NAME = module.run_notebook.function_name
     VALIDATION_NOTEBOOK_ID     = local.validation_notebook_id
     TECHNICAL_OWNER_ID         = local.technical_owner_id
@@ -44,6 +49,5 @@ module "add_configuration" {
     Env            = terraform.workspace
     git_repository = var.git_repository
   }
-  sns_alerting_topic_arn = aws_sns_topic.alerting.arn
-  depends_on             = [aws_ssm_parameter.cf_origin_secret]
+  depends_on = [aws_ssm_parameter.cf_origin_secret]
 }

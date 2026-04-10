@@ -123,6 +123,116 @@ function wireConfigSelects(configSel, vcpuSel, memSel) {
   vcpuSel.addEventListener("change", function () { populateMemorySelect(vcpuSel, memSel); });
 }
 
+// --- Labels component ---
+
+const LABEL_REGEX = /^[a-z\u00e0-\u00f6\u00f8-\u00ff0-9\-]+$/;
+
+async function loadAllLabels() {
+  try {
+    const res = await fetch(CONFIG.apiBaseUrl + "/api/labels");
+    if (res.ok) return await res.json();
+  } catch (e) { /* ignore */ }
+  return [];
+}
+
+function createLabelsInput(containerEl, allLabels) {
+  let selected = [];
+  containerEl.classList.add("labels-input");
+  containerEl.innerHTML = '<div class="labels-pills"></div><input type="text" placeholder="Add label...">'
+    + '<div class="labels-suggestions"></div>';
+  var pillsEl = containerEl.querySelector(".labels-pills");
+  var inputEl = containerEl.querySelector("input");
+  var suggestEl = containerEl.querySelector(".labels-suggestions");
+
+  function render() {
+    pillsEl.innerHTML = "";
+    for (var i = 0; i < selected.length; i++) {
+      var pill = document.createElement("span");
+      pill.className = "label-tag";
+      pill.textContent = selected[i];
+      var x = document.createElement("span");
+      x.className = "remove-label";
+      x.textContent = "\u00d7";
+      x.dataset.idx = i;
+      pill.appendChild(x);
+      pillsEl.appendChild(pill);
+    }
+  }
+
+  pillsEl.addEventListener("click", function (e) {
+    if (!e.target.classList.contains("remove-label")) return;
+    selected.splice(parseInt(e.target.dataset.idx), 1);
+    render();
+  });
+
+  function showSuggestions(query) {
+    var matches = allLabels.filter(function (l) {
+      return l.indexOf(query) !== -1 && selected.indexOf(l) === -1;
+    });
+    if (matches.length === 0 || (!query && matches.length === allLabels.length)) {
+      suggestEl.classList.remove("open");
+      return;
+    }
+    suggestEl.innerHTML = "";
+    for (var i = 0; i < Math.min(matches.length, 10); i++) {
+      var d = document.createElement("div");
+      d.textContent = matches[i];
+      suggestEl.appendChild(d);
+    }
+    suggestEl.classList.add("open");
+  }
+
+  inputEl.addEventListener("input", function () {
+    showSuggestions(inputEl.value.trim().toLowerCase());
+  });
+
+  inputEl.addEventListener("focus", function () {
+    if (inputEl.value.trim()) showSuggestions(inputEl.value.trim().toLowerCase());
+  });
+
+  inputEl.addEventListener("keydown", function (e) {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    var val = inputEl.value.trim().toLowerCase();
+    if (!val || !LABEL_REGEX.test(val) || selected.indexOf(val) !== -1) return;
+    selected.push(val);
+    inputEl.value = "";
+    suggestEl.classList.remove("open");
+    render();
+  });
+
+  suggestEl.addEventListener("click", function (e) {
+    var d = e.target.closest("div");
+    if (!d) return;
+    var val = d.textContent;
+    if (selected.indexOf(val) === -1) selected.push(val);
+    inputEl.value = "";
+    suggestEl.classList.remove("open");
+    render();
+  });
+
+  document.addEventListener("click", function (e) {
+    if (!containerEl.contains(e.target)) suggestEl.classList.remove("open");
+  });
+
+  render();
+
+  function flush() {
+    var val = inputEl.value.trim().toLowerCase();
+    if (val && LABEL_REGEX.test(val) && selected.indexOf(val) === -1) {
+      selected.push(val);
+      inputEl.value = "";
+      suggestEl.classList.remove("open");
+      render();
+    }
+  }
+
+  return {
+    getLabels: function () { flush(); return selected.slice(); },
+    setLabels: function (arr) { selected = arr.slice(); render(); }
+  };
+}
+
 function initMenuToggle(container) {
   container.addEventListener("click", function (e) {
     var toggle = e.target.closest(".menu-toggle");

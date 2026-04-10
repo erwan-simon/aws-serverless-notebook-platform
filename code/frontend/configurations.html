@@ -35,6 +35,7 @@
         <h1>Configurations</h1>
         <button class="btn-add" id="addBtn">+ Add Configuration</button>
     </div>
+    <div class="filters-bar" id="cfgFilters" style="margin-bottom: 10px;"></div>
     <div id="content"><p class="loading">Loading configurations...</p></div>
 
     <dialog id="addDialog">
@@ -51,6 +52,8 @@
         <select id="inputMemory"></select>
         <label for="inputDesc">Description <span style="font-weight:400; color:#999;">(optional)</span></label>
         <input type="text" id="inputDesc" placeholder="">
+        <label>Labels <span style="font-weight:400; color:#999;">(optional)</span></label>
+        <div id="addLabelsContainer"></div>
         <div>
             <button class="btn-submit" id="submitBtn">Add</button>
             <button class="btn-cancel" id="cancelBtn">Cancel</button>
@@ -72,6 +75,8 @@
         <select id="editMemory"></select>
         <label for="editDesc">Description <span style="font-weight:400; color:#999;">(optional)</span></label>
         <input type="text" id="editDesc">
+        <label>Labels <span style="font-weight:400; color:#999;">(optional)</span></label>
+        <div id="editLabelsContainer"></div>
         <div>
             <button class="btn-submit" id="editSubmitBtn">Save</button>
             <button class="btn-cancel" id="editCancelBtn">Cancel</button>
@@ -86,6 +91,10 @@
 
             const content = document.getElementById("content");
             const dialog = document.getElementById("addDialog");
+
+            const allLabels = await loadAllLabels();
+            const addLabelsInput = createLabelsInput(document.getElementById("addLabelsContainer"), allLabels);
+            const editLabelsInput = createLabelsInput(document.getElementById("editLabelsContainer"), allLabels);
 
             const inputVcpu = document.getElementById("inputVcpu");
             const inputMemory = document.getElementById("inputMemory");
@@ -189,6 +198,11 @@
                     html += '</div></div>';
                     html += '</div>';
                     html += '</div>';
+                    if (cfg.labels && cfg.labels.length) {
+                        html += '<div style="margin-top:6px;">';
+                        for (const label of cfg.labels) html += '<span class="label-tag">' + label + '</span>';
+                        html += '</div>';
+                    }
                     html += '<div class="cfg-details">';
                     html += '<div class="cfg-detail"><span class="cfg-detail-label">Image</span> <span class="cfg-detail-value">' + linkOrText(ecrUrl, imageLabel) + '</span></div>';
                     html += '<div class="cfg-detail"><span class="cfg-detail-label">Role</span> <span class="cfg-detail-value">' + linkOrText(iamUrl, roleLabel) + '</span></div>';
@@ -202,17 +216,27 @@
                     return html;
             }
 
+            let allConfigs = [];
+
             async function loadConfigurations() {
-                let html = '<div class="cfg-list">';
                 try {
                     const res = await fetch(CONFIG.apiBaseUrl + "/api/configurations");
-                    if (res.ok) {
-                        const configs = await res.json();
-                        for (const cfg of configs) {
-                            html += renderCard(cfg);
-                        }
-                    }
+                    if (res.ok) allConfigs = await res.json();
                 } catch (e) { /* ignore */ }
+                // Build label filter
+                const cfgLabels = [...new Set(allConfigs.flatMap(c => c.labels || []))].sort();
+                const filtersEl = document.getElementById("cfgFilters");
+                filtersEl.innerHTML = '<select id="filterCfgLabel"><option value="">All labels</option>' +
+                    cfgLabels.map(l => '<option value="' + l + '">' + l + '</option>').join("") + '</select>';
+                document.getElementById("filterCfgLabel").addEventListener("change", renderFilteredConfigs);
+                renderFilteredConfigs();
+            }
+
+            function renderFilteredConfigs() {
+                const labelVal = document.getElementById("filterCfgLabel").value;
+                const filtered = labelVal ? allConfigs.filter(c => (c.labels || []).includes(labelVal)) : allConfigs;
+                let html = '<div class="cfg-list">';
+                for (const cfg of filtered) html += renderCard(cfg);
                 html += '</div>';
                 content.innerHTML = html;
                 checkValidations();
@@ -225,6 +249,7 @@
                 document.getElementById("inputImage").value = "";
                 document.getElementById("inputRole").value = "";
                 document.getElementById("inputDesc").value = "";
+                addLabelsInput.setLabels([]);
                 populateVcpuSelect(inputVcpu, inputMemory);
                 dialog.showModal();
             });
@@ -242,6 +267,8 @@
                 btn.textContent = "Adding...";
                 const body = { name, ecr_image_uri: image, iam_role_arn: role, vcpu: parseInt(inputVcpu.value), memory: parseInt(inputMemory.value) };
                 if (desc) body.description = desc;
+                const aLabels = addLabelsInput.getLabels();
+                if (aLabels.length) body.labels = aLabels;
                 const res = await fetch(CONFIG.apiBaseUrl + "/api/configurations", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
@@ -296,6 +323,7 @@
                     document.getElementById("editImage").value = cfg.ecr_image_uri || "";
                     document.getElementById("editRole").value = cfg.iam_role_arn || "";
                     document.getElementById("editDesc").value = cfg.description || "";
+                    editLabelsInput.setLabels(cfg.labels || []);
                     populateVcpuSelect(editVcpu, editMemory, parseInt(cfg.vcpu), parseInt(cfg.memory));
                     editDialog.showModal();
                 }
@@ -316,6 +344,7 @@
                     description: document.getElementById("editDesc").value.trim(),
                     vcpu: parseInt(editVcpu.value),
                     memory: parseInt(editMemory.value),
+                    labels: editLabelsInput.getLabels(),
                 };
                 if (!body.name || !body.ecr_image_uri || !body.iam_role_arn) { alert("Name, Image URI and Role ARN are required"); return; }
                 const btn = document.getElementById("editSubmitBtn");
