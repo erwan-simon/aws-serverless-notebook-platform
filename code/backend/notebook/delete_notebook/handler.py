@@ -5,6 +5,7 @@ import os
 import boto3
 
 logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
 HEADERS = {
     "Content-Type": "application/json",
@@ -39,6 +40,7 @@ def handler(event, context):
         return {"statusCode": 404, "headers": HEADERS, "body": json.dumps({"error": "Notebook not found"})}
 
     s3_key = item["s3_key"]
+    logger.info("Deleting notebook: id=%s, name=%s, s3_key=%s", notebook_id, item.get("name"), s3_key)
 
     # Step 1: Delete from DynamoDB
     table.delete_item(Key={"id": notebook_id})

@@ -1,7 +1,11 @@
 import json
+import logging
 import os
 
 import boto3
+
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
 HEADERS = {
     "Content-Type": "application/json",
@@ -24,6 +28,8 @@ def handler(event, context):
     service_name = event["pathParameters"]["service_name"]
     cluster_name = os.environ["ECS_CLUSTER_NAME"]
     environment_name = os.environ["ENVIRONMENT_NAME"]
+
+    logger.info("Stopping session: service=%s", service_name)
 
     if not service_name.startswith(f"{environment_name}_"):
         return {

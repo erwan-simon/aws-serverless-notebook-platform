@@ -1,9 +1,13 @@
 import json
+import logging
 import os
 import uuid
 from datetime import datetime, timezone
 
 import boto3
+
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
 HEADERS = {
     "Content-Type": "application/json",
@@ -86,6 +90,8 @@ def handler(event, context):
 
     execution_id = str(uuid.uuid4())
     task_family = f"{environment_name}_exec_{execution_id[:8]}"
+    logger.info("Running notebook: execution_id=%s, notebook_id=%s, image=%s, trigger=%s, vcpu=%d, memory=%d",
+                execution_id, notebook_id or "N/A", ecr_image_uri, trigger_type, vcpu, memory)
 
     if custom_command:
         container_command = [custom_command]
@@ -159,6 +165,7 @@ def handler(event, context):
     )
 
     task_arn = run_result["tasks"][0]["taskArn"]
+    logger.info("ECS task started: execution_id=%s, task_arn=%s", execution_id, task_arn)
 
     executions_table = dynamodb.Table(os.environ["EXECUTIONS_TABLE"])
     item = {

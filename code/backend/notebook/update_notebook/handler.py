@@ -1,9 +1,13 @@
 import json
+import logging
 import os
 import re
 
 import boto3
 from botocore.exceptions import ClientError
+
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
 HEADERS = {
     "Content-Type": "application/json",
@@ -55,6 +59,7 @@ def handler(event, context):
         return {"statusCode": 404, "headers": HEADERS, "body": json.dumps({"error": "Notebook not found"})}
 
     body = json.loads(event.get("body", "{}") or "{}")
+    logger.info("Updating notebook: id=%s, body keys=%s", notebook_id, list(body.keys()))
 
     expr_set = []
     expr_remove = []
@@ -168,4 +173,6 @@ def handler(event, context):
         labels_table = dynamodb.Table(os.environ["LABELS_TABLE"])
         _sync_labels(body["labels"], labels_table)
 
+    logger.info("Notebook updated: id=%s, labels=%s, schedule=%s", notebook_id,
+                body.get("labels"), body.get("schedule_cron", "none"))
     return {"statusCode": 200, "headers": HEADERS, "body": json.dumps({"message": "Notebook updated"})}

@@ -65,6 +65,7 @@ def handler(event, context):
     body = json.loads(event["body"])
     iam_role_arn = body["iam_role_arn"]
     ecr_image_uri = body["ecr_image_uri"]
+    logger.info("Run session: user=%s, image=%s, role=%s", user_sub[:8], ecr_image_uri, iam_role_arn)
 
     environment_name = os.environ["ENVIRONMENT_NAME"]
     cluster_name = os.environ["ECS_CLUSTER_NAME"]
@@ -329,6 +330,7 @@ def handler(event, context):
         tags=tags,
     )
 
+    logger.info("Session created: service=%s, base_url=%s, vcpu=%d, memory=%d", service_name, base_url, vcpu, memory)
     return {
         "statusCode": 200,
         "headers": HEADERS,

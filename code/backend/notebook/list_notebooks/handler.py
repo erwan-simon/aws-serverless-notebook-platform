@@ -1,7 +1,11 @@
 import json
+import logging
 import os
 
 import boto3
+
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
 HEADERS = {
     "Content-Type": "application/json",
@@ -75,4 +79,5 @@ def handler(event, context):
             entry["last_execution_status"] = ex.get("status", "")
         result.append(entry)
 
+    logger.info("Returning %d notebooks", len(result))
     return {"statusCode": 200, "headers": HEADERS, "body": json.dumps(result)}

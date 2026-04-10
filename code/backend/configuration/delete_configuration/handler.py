@@ -1,7 +1,11 @@
 import json
+import logging
 import os
 
 import boto3
+
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
 HEADERS = {
     "Content-Type": "application/json",
@@ -30,6 +34,7 @@ def handler(event, context):
     if not item:
         return {"statusCode": 404, "headers": HEADERS, "body": json.dumps({"error": "Configuration not found"})}
 
+    logger.info("Deleting configuration: id=%s, name=%s", config_id, item.get("name"))
     table.delete_item(Key={"id": config_id})
 
     return {"statusCode": 200, "headers": HEADERS, "body": json.dumps({"message": "Configuration deleted"})}

@@ -117,6 +117,8 @@ def handler(event, context):
         item["labels"] = labels
 
     table.put_item(Item=item)
+    logger.info("Configuration created: id=%s, name=%s, labels=%s, notebook_validation=%s, session_validation=%s",
+                item["id"], name, labels or [], notebook_exec_id, session_exec_id)
 
     if labels:
         labels_table = dynamodb.Table(os.environ["LABELS_TABLE"])

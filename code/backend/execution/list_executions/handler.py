@@ -1,8 +1,12 @@
 import json
+import logging
 import os
 
 import boto3
 from boto3.dynamodb.conditions import Attr
+
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
 HEADERS = {
     "Content-Type": "application/json",
@@ -54,4 +58,5 @@ def handler(event, context):
         for ex in executions
     ]
 
+    logger.info("Returning %d executions for notebook %s", len(result), notebook_id)
     return {"statusCode": 200, "headers": HEADERS, "body": json.dumps(result)}

@@ -1,8 +1,12 @@
 import json
+import logging
 import os
 import re
 
 import boto3
+
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
 # Pattern to extract --ServerApp.base_url value from the Jupyter command
 _BASE_URL_RE = re.compile(r"--ServerApp\.base_url=(\S+)")
@@ -79,6 +83,7 @@ def handler(event, context):
             container = task.get("containers", [{}])[0]
             container_reason = container.get("reason", "")
             exit_code = container.get("exitCode")
+            logger.info("Session task stopped: service=%s, reason=%s, exit_code=%s", service_name, reason or container_reason, exit_code)
 
             if "OutOfMemory" in reason or "OutOfMemory" in container_reason:
                 return _response("error", service_name, message="Container stopped: out of memory. Stop the session and start a new one with more memory.")

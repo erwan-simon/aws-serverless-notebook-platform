@@ -1,8 +1,12 @@
 import json
+import logging
 import os
 
 import boto3
 from botocore.exceptions import ClientError
+
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
 HEADERS = {
     "Content-Type": "application/json",
@@ -33,6 +37,7 @@ def handler(event, context):
         return {"statusCode": 404, "headers": HEADERS, "body": json.dumps({"error": "Notebook not found"})}
 
     schedule_name = notebook.get("schedule_name")
+    logger.info("Unscheduling notebook: id=%s, schedule_name=%s", notebook_id, schedule_name)
     if not schedule_name:
         return {"statusCode": 400, "headers": HEADERS, "body": json.dumps({"error": "Notebook is not scheduled"})}
 

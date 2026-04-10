@@ -1,9 +1,13 @@
 import json
+import logging
 import os
 
 import boto3
 import nbformat
 from nbconvert import HTMLExporter
+
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
 HEADERS = {
     "Access-Control-Allow-Origin": "*",
@@ -54,6 +58,8 @@ def handler(event, context):
     s3 = boto3.client("s3")
     dynamodb = boto3.resource("dynamodb")
     bucket = os.environ["NOTEBOOKS_BUCKET"]
+
+    logger.info("Rendering: notebook_id=%s, execution_id=%s", notebook_id or "N/A", execution_id or "N/A")
 
     if notebook_id:
         table = dynamodb.Table(os.environ["NOTEBOOKS_TABLE"])

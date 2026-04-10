@@ -1,8 +1,12 @@
 import json
+import logging
 import os
 from datetime import datetime, timezone
 
 import boto3
+
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
 HEADERS = {
     "Content-Type": "application/json",
@@ -106,6 +110,7 @@ def handler(event, context):
 
     # Update DynamoDB if status changed
     if new_status != current_status:
+        logger.info("Execution %s status changed: %s -> %s", execution_id, current_status, new_status)
         update_expr = "SET #s = :s"
         expr_values = {":s": new_status}
         expr_names = {"#s": "status"}

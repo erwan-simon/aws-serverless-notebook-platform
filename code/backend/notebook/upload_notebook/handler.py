@@ -14,6 +14,7 @@ from nbconvert import HTMLExporter
 LABEL_REGEX = re.compile(r"^[a-z\u00e0-\u00f6\u00f8-\u00ff0-9\-]+$")
 
 logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
 HEADERS = {
     "Content-Type": "application/json",
@@ -66,6 +67,7 @@ def handler(event, context):
 
     notebook_id = str(uuid.uuid4())
     s3_key = f"{prefix}{notebook_id}.ipynb"
+    logger.info("Uploading notebook: id=%s, filename=%s, owner=%s", notebook_id, filename, owner_email)
 
     s3 = boto3.client("s3")
     dynamodb = boto3.resource("dynamodb")
@@ -104,6 +106,8 @@ def handler(event, context):
         except Exception as rollback_err:
             logger.error("S3 rollback also failed for %s: %s", s3_key, rollback_err)
         return {"statusCode": 500, "headers": HEADERS, "body": json.dumps({"error": "Failed to register notebook"})}
+
+    logger.info("Notebook uploaded: id=%s, labels=%s", notebook_id, item.get("labels", []))
 
     # Sync new labels to centralized labels table
     if labels:

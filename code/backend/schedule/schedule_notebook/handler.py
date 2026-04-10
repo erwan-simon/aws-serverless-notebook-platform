@@ -1,8 +1,12 @@
 import json
+import logging
 import os
 
 import boto3
 from botocore.exceptions import ClientError
+
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
 HEADERS = {
     "Content-Type": "application/json",
@@ -54,6 +58,7 @@ def handler(event, context):
     run_notebook_lambda_arn = os.environ["RUN_NOTEBOOK_LAMBDA_ARN"]
 
     schedule_name = f"{environment_name}_nb_{notebook_id[:8]}"
+    logger.info("Scheduling notebook: id=%s, cron=%s, image=%s", notebook_id, cron_expression, ecr_image_uri)
 
     scheduler = boto3.client("scheduler")
     try:

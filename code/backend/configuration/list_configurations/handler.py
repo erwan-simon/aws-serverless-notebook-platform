@@ -6,6 +6,7 @@ from decimal import Decimal
 import boto3
 
 logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
 HEADERS = {
     "Content-Type": "application/json",
@@ -152,4 +153,5 @@ def handler(event, context):
 
     items.sort(key=lambda x: x.get("created_at", ""), reverse=True)
 
+    logger.info("Returning %d configurations", len(items))
     return {"statusCode": 200, "headers": HEADERS, "body": json.dumps(items, default=lambda o: int(o) if isinstance(o, Decimal) else str(o))}

@@ -43,6 +43,7 @@ def handler(event, context):
         return {"statusCode": 403, "headers": HEADERS, "body": json.dumps({"error": "Cannot update Terraform-managed configuration"})}
 
     body = json.loads(event.get("body", "{}") or "{}")
+    logger.info("Updating configuration: id=%s, body keys=%s", config_id, list(body.keys()))
     updates = {}
     for field in ALLOWED_FIELDS:
         if field in body:
@@ -58,14 +59,19 @@ def handler(event, context):
                 val = list(set(val))
             updates[field] = val
 
+    logger.info("Fields to update: %s", list(updates.keys()))
+
     # Clear validation IDs only if infra-related fields actually changed
     infra_changed = any(
         updates.get(f) is not None and updates[f] != item.get(f)
         for f in {"ecr_image_uri", "iam_role_arn", "vcpu", "memory"}
     )
     if infra_changed:
+        logger.info("Infra fields changed, clearing validation IDs for re-validation")
         updates["validation_notebook_execution_id"] = None
         updates["validation_session_execution_id"] = None
+    else:
+        logger.info("No infra fields changed, keeping existing validations")
 
     expr_set = []
     expr_remove = []
@@ -91,6 +97,8 @@ def handler(event, context):
         ExpressionAttributeNames=attr_names,
         **({"ExpressionAttributeValues": attr_values} if attr_values else {}),
     )
+
+    logger.info("Configuration updated: id=%s", config_id)
 
     # Sync new labels to centralized labels table
     if "labels" in updates and updates["labels"]:

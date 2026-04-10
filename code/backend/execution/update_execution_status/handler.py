@@ -1,7 +1,11 @@
+import logging
 import os
 from datetime import datetime, timezone
 
 import boto3
+
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
 TERMINAL_STATUSES = {"SUCCEEDED", "FAILED", "STOPPED"}
 
@@ -40,6 +44,7 @@ def handler(event, context):
         return
 
     new_status = _map_ecs_status(detail)
+    logger.info("ECS event: task_arn=%s, execution_id=%s, new_status=%s", task_arn, execution_id, new_status)
 
     dynamodb = boto3.resource("dynamodb")
     table = dynamodb.Table(os.environ["EXECUTIONS_TABLE"])
