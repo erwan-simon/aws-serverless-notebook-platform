@@ -16,6 +16,11 @@ data "aws_iam_policy_document" "run_notebook_lambda" {
       variable = "iam:PassedToService"
       values   = ["ecs-tasks.amazonaws.com"]
     }
+    condition {
+      test     = "StringEquals"
+      variable = "iam:ResourceTag/${local.security_tag_key}"
+      values   = [local.security_tag_value]
+    }
   }
   statement {
     actions   = ["dynamodb:GetItem"]

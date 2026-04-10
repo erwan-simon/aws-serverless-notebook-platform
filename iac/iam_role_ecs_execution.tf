@@ -2,6 +2,10 @@ resource "aws_iam_role" "ecs_execution" {
   name = "${local.environment_name}_ecs_execution"
 
   assume_role_policy = data.aws_iam_policy_document.ecs_execution_assume.json
+
+  tags = {
+    (local.security_tag_key) = local.security_tag_value
+  }
 }
 
 data "aws_iam_policy_document" "ecs_execution_assume" {
@@ -66,13 +70,21 @@ data "aws_iam_policy_document" "ecs_execution" {
     resources = [aws_efs_file_system.sessions.arn]
   }
   statement {
+    actions   = ["ecr:DescribeRegistry"]
+    resources = ["*"]
+  }
+  statement {
     actions = [
-      "ecr:DescribeRegistry",
       "ecr:DescribeImages",
       "ecr:GetRepositoryPolicy",
       "ecr:BatchGetImage",
       "ecr:GetDownloadUrlForLayer"
     ]
     resources = ["arn:aws:ecr:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:repository/*"]
+    condition {
+      test     = "StringEquals"
+      variable = "ecr:ResourceTag/${local.security_tag_key}"
+      values   = [local.security_tag_value]
+    }
   }
 }

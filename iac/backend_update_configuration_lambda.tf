@@ -8,6 +8,10 @@ data "aws_iam_policy_document" "update_configuration_lambda" {
     resources = [aws_dynamodb_table.labels.arn]
   }
   statement {
+    actions   = ["iam:GetRole", "ecr:ListTagsForResource"]
+    resources = ["*"]
+  }
+  statement {
     actions = [
       "logs:CreateLogGroup",
       "logs:CreateLogStream",
@@ -35,6 +39,8 @@ module "update_configuration" {
     CONFIGURATIONS_TABLE = aws_dynamodb_table.configurations.name
     LABELS_TABLE         = aws_dynamodb_table.labels.name
     LABEL_REGEX          = local.label_regex
+    SECURITY_TAG_KEY     = local.security_tag_key
+    SECURITY_TAG_VALUE   = local.security_tag_value
   }
   tags_map = {
     Appli          = var.project_name

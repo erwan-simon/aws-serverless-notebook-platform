@@ -12,6 +12,10 @@ data "aws_iam_policy_document" "add_configuration_lambda" {
     resources = [module.run_notebook.function_arn]
   }
   statement {
+    actions   = ["iam:GetRole", "ecr:ListTagsForResource"]
+    resources = ["*"]
+  }
+  statement {
     actions = [
       "logs:CreateLogGroup",
       "logs:CreateLogStream",
@@ -43,6 +47,8 @@ module "add_configuration" {
     RUN_NOTEBOOK_FUNCTION_NAME = module.run_notebook.function_name
     VALIDATION_NOTEBOOK_ID     = local.validation_notebook_id
     TECHNICAL_OWNER_ID         = local.technical_owner_id
+    SECURITY_TAG_KEY           = local.security_tag_key
+    SECURITY_TAG_VALUE         = local.security_tag_value
   }
   tags_map = {
     Appli          = var.project_name

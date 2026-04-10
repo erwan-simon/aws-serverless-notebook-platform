@@ -21,8 +21,10 @@ locals {
 module "build_base_image" {
   source = "git::https://github.com/erwan-simon/terraform-module-build-image-and-push-to-ecr//iac/?ref=v1.0.2"
 
-  ecr_name              = "${local.environment_name}_base_image"
-  tags_map              = {}
+  ecr_name = "${local.environment_name}_base_image"
+  tags_map = {
+    (local.security_tag_key) = local.security_tag_value
+  }
   code_path             = abspath(local.source_code_path)
   image_tag             = local.image_tag
   image_rebuild_trigger = jsonencode(local.rebuild_trigger)

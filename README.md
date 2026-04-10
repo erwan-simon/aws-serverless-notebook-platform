@@ -193,8 +193,11 @@ Custom IAM roles **must**:
 - Have a trust policy allowing `ecs-tasks.amazonaws.com` to assume the role
 - Have permission to pull the Docker image from ECR
 - Have permission to write CloudWatch logs
+- **Carry the security allowlist tag** `{project_name}:{domain_name} = allowed` (see the Security section). The stack is policy-restricted to only pass roles carrying this tag.
 
 Refer to `iac/iam_role_ecs_execution.tf` for a working example.
+
+Custom ECR repositories referenced from a configuration must also carry the `{project_name}:{domain_name} = allowed` tag — the ECS execution role is policy-restricted to pull only from tagged repositories.
 
 ## Base Docker Image
 
@@ -261,6 +264,7 @@ All routes require Cognito JWT authentication and are proxied through CloudFront
 - **Cognito User Pool** — Email-based accounts, admin-only creation, OAuth2 PKCE flow
 - **JWT validation** — API Gateway JWT authorizer validates tokens on every request
 - **IAM roles** — Granular per-function Lambda roles, configurable ECS task execution roles
+- **Tag-based allowlist for roles and ECR repos** — The `run_notebook` / `run_session` Lambdas can only `iam:PassRole` on IAM roles tagged `{project_name}:{domain_name} = allowed`, and the ECS execution role can only pull ECR images from repositories carrying the same tag. Users creating a custom configuration must reference a role and a repository tagged accordingly; `add_configuration` / `update_configuration` pre-validate the tags and reject the request with a clear error otherwise. Defined in `iac/locals.tf` as `security_tag_key` / `security_tag_value`.
 
 ### Data
 
