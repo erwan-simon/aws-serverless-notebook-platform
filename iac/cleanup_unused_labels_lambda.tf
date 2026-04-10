@@ -5,7 +5,12 @@ locals {
     task_code_hashes = jsonencode({
       for file_path in fileset(trimsuffix(local.cleanup_unused_labels_code_path, "/"), "**") :
       file_path => filemd5("${trimsuffix(local.cleanup_unused_labels_code_path, "/")}/${file_path}")
-      if !strcontains(file_path, "__pycache__/")
+      if alltrue([
+        for directory_pattern_to_ignore in [
+          "__pycache__/", "login_error_message.txt"
+        ] :
+        !strcontains(file_path, directory_pattern_to_ignore)
+      ])
     })
     dockerfile_hash = filemd5("${local.cleanup_unused_labels_code_path}Dockerfile")
   }
