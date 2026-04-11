@@ -139,11 +139,20 @@ async function loadAllLabels() {
 function createLabelsInput(containerEl, allLabels) {
   let selected = [];
   containerEl.classList.add("labels-input");
-  containerEl.innerHTML = '<div class="labels-pills"></div><input type="text" placeholder="Add label...">'
-    + '<div class="labels-suggestions"></div>';
+  containerEl.innerHTML = '<div class="labels-pills"></div><input type="text" maxlength="12" placeholder="Add label...">'
+    + '<div class="labels-suggestions"></div>'
+    + '<div class="labels-error"></div>';
   var pillsEl = containerEl.querySelector(".labels-pills");
   var inputEl = containerEl.querySelector("input");
   var suggestEl = containerEl.querySelector(".labels-suggestions");
+  var errorEl = containerEl.querySelector(".labels-error");
+
+  function showError(msg) {
+    errorEl.textContent = msg;
+    errorEl.classList.add("visible");
+    clearTimeout(showError._t);
+    showError._t = setTimeout(function () { errorEl.classList.remove("visible"); }, 2500);
+  }
 
   function render() {
     pillsEl.innerHTML = "";
@@ -195,7 +204,16 @@ function createLabelsInput(containerEl, allLabels) {
     if (e.key !== "Enter") return;
     e.preventDefault();
     var val = inputEl.value.trim().toLowerCase();
-    if (!val || !LABEL_REGEX.test(val) || selected.indexOf(val) !== -1) return;
+    if (!val) return;
+    if (selected.indexOf(val) !== -1) {
+      inputEl.value = "";
+      suggestEl.classList.remove("open");
+      return;
+    }
+    if (!LABEL_REGEX.test(val)) {
+      showError("Invalid label: use lowercase letters, digits or '-' (max 12 chars)");
+      return;
+    }
     selected.push(val);
     inputEl.value = "";
     suggestEl.classList.remove("open");

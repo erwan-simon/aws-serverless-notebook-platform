@@ -51,6 +51,8 @@ tr:hover { background: #f9f9f9; }
 .labels-suggestions.open { display: block; }
 .labels-suggestions div { padding: 6px 10px; font-size: 13px; cursor: pointer; }
 .labels-suggestions div:hover { background: #f3e5f5; }
+.labels-error { display: none; margin-top: 4px; font-size: 12px; color: #c62828; }
+.labels-error.visible { display: block; }
 
 .filter-labels-bar { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
 .filter-label-pill { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 12px; font-weight: 500; cursor: pointer; background: #f5f5f5; color: #666; border: 1px solid #ddd; transition: all 0.15s; }
