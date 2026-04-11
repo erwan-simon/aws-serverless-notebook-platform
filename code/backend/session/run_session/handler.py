@@ -7,6 +7,7 @@ import uuid
 
 
 import boto3
+from botocore.exceptions import ClientError
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -15,6 +16,38 @@ HEADERS = {
     "Content-Type": "application/json",
     "Access-Control-Allow-Origin": "*",
 }
+
+SECURITY_TAG_KEY = os.environ["SECURITY_TAG_KEY"]
+SECURITY_TAG_VALUE = os.environ["SECURITY_TAG_VALUE"]
+
+ECR_IMAGE_URI_REGEX = re.compile(
+    r"^(?P<account>\d+)\.dkr\.ecr\.(?P<region>[a-z0-9-]+)\.amazonaws\.com/(?P<repo>[^:@]+)(?:[:@].+)?$"
+)
+
+
+class TagValidationError(Exception):
+    pass
+
+
+def _validate_image_tag(ecr_image_uri: str) -> None:
+    match = ECR_IMAGE_URI_REGEX.match(ecr_image_uri)
+    if not match:
+        raise TagValidationError(f"Invalid ECR image URI: {ecr_image_uri}")
+    account = match.group("account")
+    region = match.group("region")
+    repo = match.group("repo")
+    ecr = boto3.client("ecr", region_name=region)
+    repo_arn = f"arn:aws:ecr:{region}:{account}:repository/{repo}"
+    try:
+        resp = ecr.list_tags_for_resource(resourceArn=repo_arn)
+    except ecr.exceptions.RepositoryNotFoundException:
+        raise TagValidationError(f"ECR repository {repo} does not exist")
+    tags = {t["Key"]: t["Value"] for t in resp.get("tags", [])}
+    if tags.get(SECURITY_TAG_KEY) != SECURITY_TAG_VALUE:
+        raise TagValidationError(
+            f"ECR repository {repo} is not tagged with {SECURITY_TAG_KEY}={SECURITY_TAG_VALUE}"
+        )
+
 
 # CloudFront origin verify secret — read once at cold start from SSM.
 # See: https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/restrict-access-to-load-balancer.html
@@ -55,17 +88,35 @@ def _cleanup_alb_resources(elbv2, listener_arn, service_name):
 
 def handler(event, context):
     if event.get("headers", {}).get("x-origin-verify") != _origin_secret:
-        return {"statusCode": 403, "headers": HEADERS, "body": json.dumps({"error": "Forbidden"})}
+        return {
+            "statusCode": 403,
+            "headers": HEADERS,
+            "body": json.dumps({"error": "Forbidden"}),
+        }
 
-    claims = event.get("requestContext", {}).get("authorizer", {}).get("jwt", {}).get("claims", {})
+    claims = (
+        event.get("requestContext", {})
+        .get("authorizer", {})
+        .get("jwt", {})
+        .get("claims", {})
+    )
     user_sub = claims.get("sub", "")
     if not user_sub:
-        return {"statusCode": 401, "headers": HEADERS, "body": json.dumps({"error": "Missing user identity"})}
+        return {
+            "statusCode": 401,
+            "headers": HEADERS,
+            "body": json.dumps({"error": "Missing user identity"}),
+        }
 
     body = json.loads(event["body"])
     iam_role_arn = body["iam_role_arn"]
     ecr_image_uri = body["ecr_image_uri"]
-    logger.info("Run session: user=%s, image=%s, role=%s", user_sub[:8], ecr_image_uri, iam_role_arn)
+    logger.info(
+        "Run session: user=%s, image=%s, role=%s",
+        user_sub[:8],
+        ecr_image_uri,
+        iam_role_arn,
+    )
 
     environment_name = os.environ["ENVIRONMENT_NAME"]
     cluster_name = os.environ["ECS_CLUSTER_NAME"]
@@ -88,7 +139,11 @@ def handler(event, context):
         return {
             "statusCode": 400,
             "headers": HEADERS,
-            "body": json.dumps({"error": f"Invalid vcpu/memory. vcpu: 256-{max_vcpu}, memory: 512-{max_memory}"}),
+            "body": json.dumps(
+                {
+                    "error": f"Invalid vcpu/memory. vcpu: 256-{max_vcpu}, memory: 512-{max_memory}"
+                }
+            ),
         }
 
     alb_listener_arn = os.environ["ALB_LISTENER_ARN"]
@@ -143,7 +198,10 @@ def handler(event, context):
                 "body": json.dumps({"service_name": service_name}),
             }
         if svc["status"] == "DRAINING":
-            logger.info("Service %s is DRAINING, waiting for it to become inactive", service_name)
+            logger.info(
+                "Service %s is DRAINING, waiting for it to become inactive",
+                service_name,
+            )
             waiter = ecs.get_waiter("services_inactive")
             try:
                 waiter.wait(
@@ -155,117 +213,157 @@ def handler(event, context):
                 return {
                     "statusCode": 409,
                     "headers": HEADERS,
-                    "body": json.dumps({"error": "Your previous session is still shutting down. Please try again in a few seconds."}),
+                    "body": json.dumps(
+                        {
+                            "error": "Your previous session is still shutting down. Please try again in a few seconds."
+                        }
+                    ),
                 }
             # Clean up orphaned ALB resources from the previous service
             _cleanup_alb_resources(elbv2, alb_listener_arn, service_name)
 
     tags = [{"key": k, "value": v} for k, v in resource_tags.items()]
 
-    task_def = ecs.register_task_definition(
-        family=service_name,
-        networkMode="awsvpc",
-        requiresCompatibilities=["FARGATE"],
-        cpu=str(vcpu),
-        memory=str(memory),
-        executionRoleArn=execution_role_arn,
-        taskRoleArn=iam_role_arn,
-        runtimePlatform={
-            "operatingSystemFamily": "LINUX",
-            "cpuArchitecture": "X86_64",
-        },
-        containerDefinitions=[
-            {
-                "name": service_name,
-                "image": ecr_image_uri,
-                "essential": True,
-                "entryPoint": ["/bin/bash", "-c"],
-                "command": [
-                    f"exec jupyter lab --ip=0.0.0.0 --port=8888 --allow-root"
-                    f" --ServerApp.token=\"${{JUPYTER_TOKEN}}\" --ServerApp.password=''"
-                    f" --ServerApp.notebook_dir=/home/jupyter"
-                    f" --ServerApp.base_url={base_url}"
-                    f" --MappingKernelManager.cull_idle_timeout={idle_timeout_seconds}"
-                    f" --MappingKernelManager.cull_connected=True"
-                    f" --ServerApp.shutdown_no_activity_timeout={idle_timeout_seconds}"
-                ],
-                "portMappings": [
+    try:
+        _validate_image_tag(ecr_image_uri)
+    except TagValidationError as e:
+        logger.warning("Image tag validation failed: %s", e)
+        return {
+            "statusCode": 400,
+            "headers": HEADERS,
+            "body": json.dumps({"error": str(e)}),
+        }
+
+    try:
+        task_def = ecs.register_task_definition(
+            family=service_name,
+            networkMode="awsvpc",
+            requiresCompatibilities=["FARGATE"],
+            cpu=str(vcpu),
+            memory=str(memory),
+            executionRoleArn=execution_role_arn,
+            taskRoleArn=iam_role_arn,
+            runtimePlatform={
+                "operatingSystemFamily": "LINUX",
+                "cpuArchitecture": "X86_64",
+            },
+            containerDefinitions=[
+                {
+                    "name": service_name,
+                    "image": ecr_image_uri,
+                    "essential": True,
+                    "entryPoint": ["/bin/bash", "-c"],
+                    "command": [
+                        f"exec jupyter lab --ip=0.0.0.0 --port=8888 --allow-root"
+                        f" --ServerApp.token=\"${{JUPYTER_TOKEN}}\" --ServerApp.password=''"
+                        f" --ServerApp.notebook_dir=/home/jupyter"
+                        f" --ServerApp.base_url={base_url}"
+                        f" --MappingKernelManager.cull_idle_timeout={idle_timeout_seconds}"
+                        f" --MappingKernelManager.cull_connected=True"
+                        f" --ServerApp.shutdown_no_activity_timeout={idle_timeout_seconds}"
+                    ],
+                    "portMappings": [
+                        {
+                            "containerPort": 8888,
+                            "hostPort": 8888,
+                            "protocol": "tcp",
+                        }
+                    ],
+                    "mountPoints": [
+                        {
+                            "containerPath": "/home/jupyter",
+                            "sourceVolume": "efs-user",
+                        },
+                        {
+                            "containerPath": "/shared",
+                            "sourceVolume": "efs-shared",
+                        },
+                    ],
+                    "environment": [
+                        {
+                            "name": "AWS_REGION",
+                            "value": os.environ.get("AWS_REGION", "eu-west-1"),
+                        },
+                        {
+                            "name": "JUPYTER_TOKEN",
+                            "value": jupyter_token,
+                        },
+                        {
+                            "name": "HOME",
+                            "value": "/home/jupyter",
+                        },
+                        {
+                            "name": "NB_USER",
+                            "value": "jupyter",
+                        },
+                    ],
+                    "healthCheck": {
+                        "command": [
+                            "CMD-SHELL",
+                            f"curl -sf http://localhost:8888{base_url}api >> /proc/1/fd/1 2>&1 || exit 1",
+                        ],
+                        "interval": 60,
+                        "timeout": 5,
+                        "retries": 5,
+                        "startPeriod": 180,
+                    },
+                    "logConfiguration": {
+                        "logDriver": "awslogs",
+                        "options": {
+                            "awslogs-group": f"/ecs/{service_name}",
+                            "awslogs-region": os.environ.get("AWS_REGION", "eu-west-1"),
+                            "awslogs-stream-prefix": "ecs",
+                            "awslogs-create-group": "true",
+                        },
+                    },
+                }
+            ],
+            volumes=[
+                {
+                    "name": "efs-user",
+                    "efsVolumeConfiguration": {
+                        "fileSystemId": efs_file_system_id,
+                        "transitEncryption": "ENABLED",
+                        "authorizationConfig": {
+                            "accessPointId": access_point_id,
+                        },
+                    },
+                },
+                {
+                    "name": "efs-shared",
+                    "efsVolumeConfiguration": {
+                        "fileSystemId": efs_file_system_id,
+                        "transitEncryption": "ENABLED",
+                        "authorizationConfig": {
+                            "accessPointId": efs_shared_access_point_id,
+                        },
+                    },
+                },
+            ],
+            tags=tags,
+        )
+    except ClientError as e:
+        if e.response["Error"]["Code"] == "AccessDeniedException":
+            logger.warning(
+                "RegisterTaskDefinition denied for role=%s image=%s: %s",
+                iam_role_arn,
+                ecr_image_uri,
+                e,
+            )
+            return {
+                "statusCode": 400,
+                "headers": HEADERS,
+                "body": json.dumps(
                     {
-                        "containerPort": 8888,
-                        "hostPort": 8888,
-                        "protocol": "tcp",
+                        "error": (
+                            f"Permission denied when starting the session. "
+                            f"The IAM role {iam_role_arn} is likely missing the "
+                            f"security allowlist tag required by this stack."
+                        )
                     }
-                ],
-                "mountPoints": [
-                    {
-                        "containerPath": "/home/jupyter",
-                        "sourceVolume": "efs-user",
-                    },
-                    {
-                        "containerPath": "/shared",
-                        "sourceVolume": "efs-shared",
-                    },
-                ],
-                "environment": [
-                    {
-                        "name": "AWS_REGION",
-                        "value": os.environ.get("AWS_REGION", "eu-west-1"),
-                    },
-                    {
-                        "name": "JUPYTER_TOKEN",
-                        "value": jupyter_token,
-                    },
-                    {
-                        "name": "HOME",
-                        "value": "/home/jupyter",
-                    },
-                    {
-                        "name": "NB_USER",
-                        "value": "jupyter",
-                    },
-                ],
-                "healthCheck": {
-                    "command": ["CMD-SHELL", f"curl -sf http://localhost:8888{base_url}api >> /proc/1/fd/1 2>&1 || exit 1"],
-                    "interval": 60,
-                    "timeout": 5,
-                    "retries": 5,
-                    "startPeriod": 180,
-                },
-                "logConfiguration": {
-                    "logDriver": "awslogs",
-                    "options": {
-                        "awslogs-group": f"/ecs/{service_name}",
-                        "awslogs-region": os.environ.get("AWS_REGION", "eu-west-1"),
-                        "awslogs-stream-prefix": "ecs",
-                        "awslogs-create-group": "true",
-                    },
-                },
+                ),
             }
-        ],
-        volumes=[
-            {
-                "name": "efs-user",
-                "efsVolumeConfiguration": {
-                    "fileSystemId": efs_file_system_id,
-                    "transitEncryption": "ENABLED",
-                    "authorizationConfig": {
-                        "accessPointId": access_point_id,
-                    },
-                },
-            },
-            {
-                "name": "efs-shared",
-                "efsVolumeConfiguration": {
-                    "fileSystemId": efs_file_system_id,
-                    "transitEncryption": "ENABLED",
-                    "authorizationConfig": {
-                        "accessPointId": efs_shared_access_point_id,
-                    },
-                },
-            },
-        ],
-        tags=tags,
-    )
+        raise
 
     # Create ALB target group for this session
     tg_name = service_name.replace("_", "-")[:32]
@@ -280,7 +378,8 @@ def handler(event, context):
         HealthCheckIntervalSeconds=30,
         HealthyThresholdCount=2,
         UnhealthyThresholdCount=3,
-        Tags=[{"Key": "SessionService", "Value": service_name}] + [{"Key": item["key"], "Value": item["value"]} for item in tags],
+        Tags=[{"Key": "SessionService", "Value": service_name}]
+        + [{"Key": item["key"], "Value": item["value"]} for item in tags],
     )
     target_group_arn = tg_resp["TargetGroups"][0]["TargetGroupArn"]
 
@@ -302,7 +401,8 @@ def handler(event, context):
                 "TargetGroupArn": target_group_arn,
             }
         ],
-        Tags=[{"Key": "SessionService", "Value": service_name}] + [{"Key": item["key"], "Value": item["value"]} for item in tags],
+        Tags=[{"Key": "SessionService", "Value": service_name}]
+        + [{"Key": item["key"], "Value": item["value"]} for item in tags],
     )
 
     ecs.create_service(
@@ -330,9 +430,17 @@ def handler(event, context):
         tags=tags,
     )
 
-    logger.info("Session created: service=%s, base_url=%s, vcpu=%d, memory=%d", service_name, base_url, vcpu, memory)
+    logger.info(
+        "Session created: service=%s, base_url=%s, vcpu=%d, memory=%d",
+        service_name,
+        base_url,
+        vcpu,
+        memory,
+    )
     return {
         "statusCode": 200,
         "headers": HEADERS,
-        "body": json.dumps({"service_name": service_name, "jupyter_token": jupyter_token}),
+        "body": json.dumps(
+            {"service_name": service_name, "jupyter_token": jupyter_token}
+        ),
     }

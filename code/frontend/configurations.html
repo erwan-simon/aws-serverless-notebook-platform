@@ -302,7 +302,7 @@
                 }
 
                 if (action === "validate") {
-                    const res = await fetch(CONFIG.apiBaseUrl + "/api/configurations/" + encodeURIComponent(id), { method: "PATCH", headers: { "Content-Type": "application/json" }, body: "{}" });
+                    const res = await fetch(CONFIG.apiBaseUrl + "/api/configurations/" + encodeURIComponent(id), { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ force_revalidation: true }) });
                     if (res.ok) { await loadConfigurations(); } else { const err = await res.json().catch(() => ({})); alert("Revalidate failed: " + (err.error || res.status)); }
                 }
 

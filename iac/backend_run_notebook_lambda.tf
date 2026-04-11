@@ -23,6 +23,10 @@ data "aws_iam_policy_document" "run_notebook_lambda" {
     }
   }
   statement {
+    actions   = ["ecr:ListTagsForResource"]
+    resources = ["*"]
+  }
+  statement {
     actions   = ["dynamodb:GetItem"]
     resources = [aws_dynamodb_table.notebooks.arn]
   }
@@ -76,6 +80,8 @@ module "run_notebook" {
     TASK_DEFAULT_MEMORY    = tostring(local.task_default_memory)
     TASK_MAX_VCPU          = tostring(local.task_max_vcpu)
     TASK_MAX_MEMORY        = tostring(local.task_max_memory)
+    SECURITY_TAG_KEY       = local.security_tag_key
+    SECURITY_TAG_VALUE     = local.security_tag_value
     RESOURCE_TAGS = jsonencode({
       Appli          = var.project_name
       Component      = local.domain_name

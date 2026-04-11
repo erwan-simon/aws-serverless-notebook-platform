@@ -32,6 +32,10 @@ data "aws_iam_policy_document" "run_session_lambda" {
     }
   }
   statement {
+    actions   = ["ecr:ListTagsForResource"]
+    resources = ["*"]
+  }
+  statement {
     actions = [
       "elasticfilesystem:DescribeAccessPoints",
       "elasticfilesystem:CreateAccessPoint",
@@ -91,6 +95,8 @@ module "run_session" {
     TASK_DEFAULT_MEMORY          = tostring(local.task_default_memory)
     TASK_MAX_VCPU                = tostring(local.task_max_vcpu)
     TASK_MAX_MEMORY              = tostring(local.task_max_memory)
+    SECURITY_TAG_KEY             = local.security_tag_key
+    SECURITY_TAG_VALUE           = local.security_tag_value
     ALB_LISTENER_ARN             = aws_lb_listener.sessions.arn
     ALB_DNS_NAME                 = aws_lb.sessions.dns_name
     VPC_ID                       = data.aws_vpc.main.id

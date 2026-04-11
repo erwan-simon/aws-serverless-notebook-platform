@@ -159,13 +159,18 @@ def handler(event, context):
             "body": json.dumps({"error": str(e)}),
         }
 
-    # Clear validation IDs only if infra-related fields actually changed
+    # Clear validation IDs if infra-related fields changed or revalidation is forced
     infra_changed = any(
         updates.get(f) is not None and updates[f] != item.get(f)
         for f in {"ecr_image_uri", "iam_role_arn", "vcpu", "memory"}
     )
-    if infra_changed:
-        logger.info("Infra fields changed, clearing validation IDs for re-validation")
+    force_revalidation = bool(body.get("force_revalidation"))
+    if infra_changed or force_revalidation:
+        logger.info(
+            "Clearing validation IDs for re-validation (infra_changed=%s, force=%s)",
+            infra_changed,
+            force_revalidation,
+        )
         updates["validation_notebook_execution_id"] = None
         updates["validation_session_execution_id"] = None
     else:
@@ -188,7 +193,6 @@ def handler(event, context):
         expression += "SET " + ", ".join(expr_set)
     if expr_remove:
         expression += " REMOVE " + ", ".join(expr_remove)
-
     table.update_item(
         Key={"id": config_id},
         UpdateExpression=expression,
