@@ -131,7 +131,7 @@ const LABEL_REGEX = new RegExp(CONFIG.labelRegex);
 async function loadAllLabels() {
   try {
     const res = await fetch(CONFIG.apiBaseUrl + "/api/labels");
-    if (res.ok) return await res.json();
+    if (res.ok) return (await res.json()).sort((a, b) => a.localeCompare(b));
   } catch (e) { /* ignore */ }
   return [];
 }

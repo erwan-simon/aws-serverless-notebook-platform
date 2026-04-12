@@ -200,7 +200,7 @@
                     html += '</div>';
                     if (cfg.labels && cfg.labels.length) {
                         html += '<div style="margin-top:6px;">';
-                        for (const label of cfg.labels) html += '<span class="label-tag" title="' + label + '">' + label + '</span>';
+                        for (const label of cfg.labels.slice().sort((a, b) => a.localeCompare(b))) html += '<span class="label-tag" title="' + label + '">' + label + '</span>';
                         html += '</div>';
                     }
                     html += '<div class="cfg-details">';
