@@ -226,15 +226,34 @@
                 // Build label filter
                 const cfgLabels = [...new Set(allConfigs.flatMap(c => c.labels || []))].sort();
                 const filtersEl = document.getElementById("cfgFilters");
+                const compatOptions = '<option value="">All</option><option value="compatible">Compatible</option><option value="incompatible">Incompatible</option><option value="validating">Validating</option>';
                 filtersEl.innerHTML = '<select id="filterCfgLabel"><option value="">All labels</option>' +
-                    cfgLabels.map(l => '<option value="' + l + '">' + l + '</option>').join("") + '</select>';
+                    cfgLabels.map(l => '<option value="' + l + '">' + l + '</option>').join("") + '</select>'
+                    + ' <select id="filterCfgNotebook" title="Notebook compatibility">' + compatOptions.replace('>All<', '>Notebook: all<') + '</select>'
+                    + ' <select id="filterCfgSession" title="Session compatibility">' + compatOptions.replace('>All<', '>Session: all<') + '</select>';
                 document.getElementById("filterCfgLabel").addEventListener("change", renderFilteredConfigs);
+                document.getElementById("filterCfgNotebook").addEventListener("change", renderFilteredConfigs);
+                document.getElementById("filterCfgSession").addEventListener("change", renderFilteredConfigs);
                 renderFilteredConfigs();
+            }
+
+            function compatBucket(execId, status) {
+                if (!execId) return null;
+                if (status === "SUCCEEDED") return "compatible";
+                if (status === "FAILED" || status === "STOPPED") return "incompatible";
+                return "validating";
             }
 
             function renderFilteredConfigs() {
                 const labelVal = document.getElementById("filterCfgLabel").value;
-                const filtered = labelVal ? allConfigs.filter(c => (c.labels || []).includes(labelVal)) : allConfigs;
+                const nbVal = document.getElementById("filterCfgNotebook").value;
+                const sessVal = document.getElementById("filterCfgSession").value;
+                const filtered = allConfigs.filter(c => {
+                    if (labelVal && !(c.labels || []).includes(labelVal)) return false;
+                    if (nbVal && compatBucket(c.validation_notebook_execution_id, c.validation_notebook_status) !== nbVal) return false;
+                    if (sessVal && compatBucket(c.validation_session_execution_id, c.validation_session_status) !== sessVal) return false;
+                    return true;
+                });
                 let html = '<div class="cfg-list">';
                 for (const cfg of filtered) html += renderCard(cfg);
                 html += '</div>';
