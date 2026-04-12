@@ -256,7 +256,7 @@ def handler(event, context):
                     "command": [
                         f"exec jupyter lab --ip=0.0.0.0 --port=8888 --allow-root"
                         f" --ServerApp.token=\"${{JUPYTER_TOKEN}}\" --ServerApp.password=''"
-                        f" --ServerApp.notebook_dir=/home/jupyter"
+                        f" --ServerApp.notebook_dir=/home/user"
                         f" --ServerApp.base_url={base_url}"
                         f" --MappingKernelManager.cull_idle_timeout={idle_timeout_seconds}"
                         f" --MappingKernelManager.cull_connected=True"
@@ -271,7 +271,7 @@ def handler(event, context):
                     ],
                     "mountPoints": [
                         {
-                            "containerPath": "/home/jupyter",
+                            "containerPath": "/home/user",
                             "sourceVolume": "efs-user",
                         },
                         {
@@ -290,11 +290,7 @@ def handler(event, context):
                         },
                         {
                             "name": "HOME",
-                            "value": "/home/jupyter",
-                        },
-                        {
-                            "name": "NB_USER",
-                            "value": "jupyter",
+                            "value": "/home/user",
                         },
                     ],
                     "healthCheck": {
