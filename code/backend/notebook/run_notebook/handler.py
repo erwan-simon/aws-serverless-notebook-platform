@@ -241,6 +241,14 @@ def handler(event, context):
                             "name": "AWS_REGION",
                             "value": os.environ.get("AWS_REGION", "eu-west-1"),
                         },
+                        {
+                            "name": "EXECUTION_ID",
+                            "value": execution_id,
+                        },
+                        {
+                            "name": "EXECUTION_URL",
+                            "value": f"{os.environ['FRONTEND_BASE_URL']}/notebook.html?execution_id={execution_id}",
+                        },
                     ],
                     "logConfiguration": {
                         "logDriver": "awslogs",

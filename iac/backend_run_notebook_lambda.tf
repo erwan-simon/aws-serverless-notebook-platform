@@ -82,6 +82,7 @@ module "run_notebook" {
     TASK_MAX_MEMORY        = tostring(local.task_max_memory)
     SECURITY_TAG_KEY       = local.security_tag_key
     SECURITY_TAG_VALUE     = local.security_tag_value
+    FRONTEND_BASE_URL      = "https://${aws_cloudfront_distribution.main.domain_name}"
     RESOURCE_TAGS = jsonencode({
       Appli          = var.project_name
       Component      = local.domain_name
