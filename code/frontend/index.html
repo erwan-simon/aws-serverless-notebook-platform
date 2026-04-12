@@ -603,6 +603,8 @@
                     patchBody.schedule_ecr_image_uri = sCfg.ecr_image_uri;
                     patchBody.schedule_vcpu = parseInt(editNbSchedVcpu.value);
                     patchBody.schedule_memory = parseInt(editNbSchedMemory.value);
+                } else if (editNbHadSchedule) {
+                    patchBody.unschedule = true;
                 }
                 const res = await fetch(CONFIG.apiBaseUrl + "/api/notebooks/" + encodeURIComponent(editNbId), {
                     method: "PATCH",
