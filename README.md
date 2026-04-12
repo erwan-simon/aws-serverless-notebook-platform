@@ -154,7 +154,7 @@ Defined in `iac/locals.tf`:
 
 ### Configurations (Docker Image + IAM Role)
 
-Configurations pair a Docker image URI with an IAM role ARN, along with default vCPU/memory. Users select a configuration when launching sessions or running notebooks.
+Configurations pair a Docker image URI with an IAM role ARN, along with default vCPU/memory. Users select a configuration when launching sessions or running notebooks. If the image URI has no tag or digest (e.g. `123456789.dkr.ecr.eu-west-1.amazonaws.com/my-repo`), the platform automatically resolves it to the most recently pushed tag in the ECR repository at runtime.
 
 **Terraform-managed configurations** are defined in the `MANAGED_CONFIGURATIONS` environment variable of the `list_configurations` Lambda (see `iac/backend_list_configurations_lambda.tf`). They are automatically seeded into DynamoDB and cannot be edited or deleted from the UI.
 

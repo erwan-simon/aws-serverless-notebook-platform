@@ -23,7 +23,7 @@ data "aws_iam_policy_document" "run_notebook_lambda" {
     }
   }
   statement {
-    actions   = ["ecr:ListTagsForResource"]
+    actions   = ["ecr:ListTagsForResource", "ecr:DescribeImages"]
     resources = ["*"]
   }
   statement {

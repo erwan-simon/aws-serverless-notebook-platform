@@ -29,6 +29,33 @@ class TagValidationError(Exception):
     pass
 
 
+def _resolve_latest_tag(ecr_image_uri: str) -> str:
+    """If no tag/digest is specified, resolve to the most recently pushed tag."""
+    match = ECR_IMAGE_URI_REGEX.match(ecr_image_uri)
+    if not match:
+        return ecr_image_uri
+    repo_and_tag = ecr_image_uri.split(".amazonaws.com/", 1)
+    if ":" in repo_and_tag[1] or "@" in repo_and_tag[1]:
+        return ecr_image_uri
+    region = match.group("region")
+    repo = match.group("repo")
+    ecr = boto3.client("ecr", region_name=region)
+    paginator = ecr.get_paginator("describe_images")
+    newest_tag = None
+    newest_pushed = None
+    for page in paginator.paginate(repositoryName=repo, filter={"tagStatus": "TAGGED"}):
+        for img in page["imageDetails"]:
+            pushed = img.get("imagePushedAt")
+            if pushed and (newest_pushed is None or pushed > newest_pushed):
+                tags = img.get("imageTags", [])
+                if tags:
+                    newest_pushed = pushed
+                    newest_tag = tags[0]
+    if not newest_tag:
+        raise TagValidationError(f"No tagged images found in ECR repository {repo}")
+    return ecr_image_uri + ":" + newest_tag
+
+
 def _validate_image_tag(ecr_image_uri: str) -> None:
     match = ECR_IMAGE_URI_REGEX.match(ecr_image_uri)
     if not match:
@@ -225,6 +252,7 @@ def handler(event, context):
     tags = [{"key": k, "value": v} for k, v in resource_tags.items()]
 
     try:
+        ecr_image_uri = _resolve_latest_tag(ecr_image_uri)
         _validate_image_tag(ecr_image_uri)
     except TagValidationError as e:
         logger.warning("Image tag validation failed: %s", e)
