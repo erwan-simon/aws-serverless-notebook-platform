@@ -121,13 +121,6 @@
                 return '<span class="status-badge status-validating" data-exec-id="' + execId + '" data-label="' + label + '">' + label + ': Validating</span>';
             }
 
-            function ecsTaskConsoleUrl(taskArn) {
-                const match = taskArn.match(/^arn:aws:ecs:([^:]+):[^:]+:task\/([^/]+)\/(.+)$/);
-                if (!match) return null;
-                const [, region, cluster, taskId] = match;
-                return "https://" + region + ".console.aws.amazon.com/ecs/v2/clusters/" + cluster + "/tasks/" + taskId + "/configuration";
-            }
-
             async function checkValidations() {
                 const badges = document.querySelectorAll("[data-exec-id]");
                 await Promise.all(Array.from(badges).map(async (badge) => {
@@ -142,10 +135,10 @@
                             badge.className = "status-badge status-validated";
                             badge.removeAttribute("data-exec-id");
                         } else if (data.status === "FAILED" || data.status === "STOPPED") {
-                            const taskUrl = ecsTaskConsoleUrl(data.task_arn || "");
-                            if (taskUrl) {
+                            const logsUrl = ecsTaskLogsUrl(data.task_arn || "", execId);
+                            if (logsUrl) {
                                 const link = document.createElement("a");
-                                link.href = taskUrl;
+                                link.href = logsUrl;
                                 link.target = "_blank";
                                 link.innerHTML = label + ": Incompatible &#8599;";
                                 link.className = "status-badge status-failed";
