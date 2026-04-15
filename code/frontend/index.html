@@ -337,7 +337,7 @@
                     html += '<div class="menu-dropdown">';
                     html += '<a href="notebook.html?id=' + id + '">View</a>';
                     html += '<button class="btn-exec" data-id="' + id + '">Run</button>';
-                    html += '<button class="btn-edit-nb" data-id="' + id + '" data-labels=\'' + JSON.stringify(nb.labels || []).replace(/'/g, "&#39;") + '\' data-cron="' + (nb.schedule_cron || "").replace(/"/g, "&quot;") + '" data-tz="' + (nb.schedule_timezone || "").replace(/"/g, "&quot;") + '">Edit</button>';
+                    html += '<button class="btn-edit-nb" data-id="' + id + '" data-labels=\'' + JSON.stringify(nb.labels || []).replace(/'/g, "&#39;") + '\' data-cron="' + (nb.schedule_cron || "").replace(/"/g, "&quot;") + '" data-tz="' + (nb.schedule_timezone || "").replace(/"/g, "&quot;") + '">Edit notebook settings</button>';
                     html += '<button class="btn-update-nb" data-id="' + id + '">Update notebook</button>';
                     html += '<a href="executions.html?notebook_id=' + id + '">Executions</a>';
                     html += '<button class="danger btn-delete" data-id="' + id + '">Delete</button>';
