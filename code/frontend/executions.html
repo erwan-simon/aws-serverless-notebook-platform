@@ -68,7 +68,7 @@
                         ? "running..."
                         : (ex.started_at ? durationStr(ex.started_at, ex.finished_at) : "");
                     html += "<tr>";
-                    html += '<td><span class="status-badge status-' + statusLower + '">' + ex.status + '</span></td>';
+                    html += '<td>' + failedStatusBadge(ex.status, ex.task_arn, ex.id) + '</td>';
                     html += "<td>" + (ex.trigger_type || "manual") + "</td>";
                     html += "<td>" + (ex.owner_email || "") + "</td>";
                     html += "<td>" + started + "</td>";

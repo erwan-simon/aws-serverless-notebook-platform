@@ -37,5 +37,6 @@ resource "aws_s3_object" "config_js" {
     task_max_memory              = local.task_max_memory
     session_idle_timeout_minutes = local.session_idle_timeout_minutes
     label_regex                  = local.label_regex
+    environment_name             = local.environment_name
   })
 }

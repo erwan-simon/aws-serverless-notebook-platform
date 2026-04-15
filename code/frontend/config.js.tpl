@@ -8,8 +8,35 @@ const CONFIG = {
   taskMaxVcpu: ${task_max_vcpu},
   taskMaxMemory: ${task_max_memory},
   sessionIdleTimeoutMinutes: ${session_idle_timeout_minutes},
-  labelRegex: "${label_regex}"
+  labelRegex: "${label_regex}",
+  environmentName: "${environment_name}"
 };
+
+function ecsTaskLogsUrl(taskArn, executionId) {
+  if (!taskArn || !executionId || !CONFIG.environmentName) return null;
+  const m = taskArn.match(/^arn:aws:ecs:([^:]+):[^:]+:task\/[^/]+\/(.+)$/);
+  if (!m) return null;
+  const region = m[1];
+  const taskId = m[2];
+  const taskFamily = CONFIG.environmentName + "_exec_" + executionId.slice(0, 8);
+  const logGroup = "/ecs/" + taskFamily;
+  const logStream = "ecs/" + taskFamily + "/" + taskId;
+  return "https://" + region + ".console.aws.amazon.com/cloudwatch/home?region=" + region
+    + "#logsV2:log-groups/log-group/" + encodeURIComponent(encodeURIComponent(logGroup))
+    + "/log-events/" + encodeURIComponent(encodeURIComponent(logStream));
+}
+
+function failedStatusBadge(status, taskArn, executionId) {
+  const lower = (status || "").toLowerCase();
+  if (status !== "FAILED") {
+    return '<span class="status-badge status-' + lower + '">' + status + '</span>';
+  }
+  const url = ecsTaskLogsUrl(taskArn, executionId);
+  if (!url) {
+    return '<span class="status-badge status-failed">' + status + '</span>';
+  }
+  return '<a class="status-badge status-failed" href="' + url + '" target="_blank" title="View CloudWatch logs" style="text-decoration:none;">' + status + ' &#8599;</a>';
+}
 
 // context: "notebook" | "session" | null (no filter)
 async function loadConfigurationOptions(selectEl, defaultValue, context) {

@@ -358,8 +358,7 @@
                             items += '<div class="meta-item"><span class="meta-label">Last execution</span> <span class="meta-value">' + new Date(nb.last_execution_date).toLocaleString() + '</span></div>';
                         }
                         if (nb.last_execution_status) {
-                            const st = nb.last_execution_status.toLowerCase();
-                            items += '<div class="meta-item"><span class="meta-label">Last Status</span> <span class="status-badge status-' + st + '">' + nb.last_execution_status + '</span></div>';
+                            items += '<div class="meta-item"><span class="meta-label">Last Status</span> ' + failedStatusBadge(nb.last_execution_status, nb.last_execution_task_arn, nb.last_execution_id) + '</div>';
                         }
                         if (nb.schedule_cron) {
                             const tz = nb.schedule_timezone || "UTC";
@@ -422,7 +421,7 @@
                                     ? "running..."
                                     : (ex.started_at ? durationStr(ex.started_at, ex.finished_at) : "");
                                 h += '<div class="exec-item">';
-                                h += '<div class="exec-item-row"><span class="status-badge status-' + stLower + '">' + ex.status + '</span><span class="exec-item-meta">' + (ex.trigger_type || "manual") + '</span></div>';
+                                h += '<div class="exec-item-row">' + failedStatusBadge(ex.status, ex.task_arn, ex.id) + '<span class="exec-item-meta">' + (ex.trigger_type || "manual") + '</span></div>';
                                 if (started) h += '<div class="exec-item-meta">' + started + (duration ? ' &middot; ' + duration : '') + '</div>';
                                 if (ex.owner_email) h += '<div class="exec-item-meta">' + ex.owner_email + '</div>';
                                 h += '<div class="exec-item-actions">';

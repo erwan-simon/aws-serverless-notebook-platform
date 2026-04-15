@@ -57,7 +57,11 @@
                     document.getElementById("pending").classList.add("hidden");
                     document.getElementById("result").classList.remove("hidden");
                     document.getElementById("resultStatus").className = "status failed";
-                    document.getElementById("resultStatus").textContent = "Execution " + data.status.toLowerCase();
+                    const label = "Execution " + data.status.toLowerCase();
+                    const logsUrl = data.status === "FAILED" ? ecsTaskLogsUrl(data.task_arn || "", executionId) : null;
+                    document.getElementById("resultStatus").innerHTML = logsUrl
+                        ? '<a href="' + logsUrl + '" target="_blank" style="color:inherit;">' + label + ' &mdash; view logs</a>'
+                        : label;
                 }
             }
 

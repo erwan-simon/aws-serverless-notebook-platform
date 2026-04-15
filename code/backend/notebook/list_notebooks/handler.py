@@ -88,11 +88,15 @@ def handler(event, context):
             "labels": nb.get("labels", []),
             "last_execution_date": "",
             "last_execution_status": "",
+            "last_execution_id": "",
+            "last_execution_task_arn": "",
         }
         ex = latest_exec.get(nb["id"])
         if ex:
             entry["last_execution_date"] = ex.get("started_at", "")
             entry["last_execution_status"] = ex.get("status", "")
+            entry["last_execution_id"] = ex.get("id", "")
+            entry["last_execution_task_arn"] = ex.get("task_arn", "")
         result.append(entry)
 
     logger.info("Returning %d notebooks", len(result))

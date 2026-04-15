@@ -24,11 +24,19 @@ assert _origin_secret, "Failed to retrieve origin verify secret from SSM"
 
 def handler(event, context):
     if event.get("headers", {}).get("x-origin-verify") != _origin_secret:
-        return {"statusCode": 403, "headers": HEADERS, "body": json.dumps({"error": "Forbidden"})}
+        return {
+            "statusCode": 403,
+            "headers": HEADERS,
+            "body": json.dumps({"error": "Forbidden"}),
+        }
 
     notebook_id = event.get("pathParameters", {}).get("notebook_id", "")
     if not notebook_id:
-        return {"statusCode": 400, "headers": HEADERS, "body": json.dumps({"error": "Missing notebook_id"})}
+        return {
+            "statusCode": 400,
+            "headers": HEADERS,
+            "body": json.dumps({"error": "Missing notebook_id"}),
+        }
 
     dynamodb = boto3.resource("dynamodb")
     table = dynamodb.Table(os.environ["EXECUTIONS_TABLE"])
@@ -54,6 +62,7 @@ def handler(event, context):
             "owner_email": ex.get("owner_email", ""),
             "output_s3_key": ex.get("output_s3_key", ""),
             "trigger_type": ex.get("trigger_type", "manual"),
+            "task_arn": ex.get("task_arn", ""),
         }
         for ex in executions
     ]

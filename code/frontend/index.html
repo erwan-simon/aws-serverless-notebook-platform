@@ -326,7 +326,7 @@
                     html += '<td title="' + (nb.owner || "") + '">' + (nb.owner || "") + "</td>";
                     html += "<td>" + date + "</td>";
                     html += "<td>" + lastExec + "</td>";
-                    html += "<td>" + (lastStatus ? '<span class="status-badge status-' + lastStatus.toLowerCase() + '">' + lastStatus + '</span>' : '') + "</td>";
+                    html += "<td>" + (lastStatus ? failedStatusBadge(lastStatus, nb.last_execution_task_arn, nb.last_execution_id) : '') + "</td>";
                     const cronDisplay = nb.schedule_cron
                         ? nb.schedule_cron + (nb.schedule_timezone ? '<span class="cron-tz">' + nb.schedule_timezone + '</span>' : '')
                         : "";
