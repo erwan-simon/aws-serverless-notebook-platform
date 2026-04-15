@@ -1,6 +1,6 @@
 data "aws_iam_policy_document" "list_configurations_lambda" {
   statement {
-    actions   = ["dynamodb:Scan", "dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem"]
+    actions   = ["dynamodb:Scan", "dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:DeleteItem"]
     resources = [aws_dynamodb_table.configurations.arn]
   }
   statement {

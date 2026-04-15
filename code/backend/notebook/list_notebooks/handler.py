@@ -65,9 +65,11 @@ def handler(event, context):
 
     result = []
     for nb in notebooks:
-        if "name" not in nb:
+        missing = [f for f in ("name", "s3_key") if f not in nb]
+        if missing:
             logger.warning(
-                "Deleting malformed notebook row (missing 'name'): %s",
+                "Deleting malformed notebook row (missing %s): %s",
+                missing,
                 json.dumps(nb, default=str),
             )
             notebooks_table.delete_item(Key={"id": nb["id"]})
