@@ -69,6 +69,8 @@
     </div>
 
     <div id="content"><p class="loading">Loading notebooks...</p></div>
+    <input type="file" id="updateFileInput" accept=".ipynb">
+
 
     <dialog id="uploadDialog">
         <h3>Upload Notebook</h3>
@@ -336,6 +338,7 @@
                     html += '<a href="notebook.html?id=' + id + '">View</a>';
                     html += '<button class="btn-exec" data-id="' + id + '">Run</button>';
                     html += '<button class="btn-edit-nb" data-id="' + id + '" data-labels=\'' + JSON.stringify(nb.labels || []).replace(/'/g, "&#39;") + '\' data-cron="' + (nb.schedule_cron || "").replace(/"/g, "&quot;") + '" data-tz="' + (nb.schedule_timezone || "").replace(/"/g, "&quot;") + '">Edit</button>';
+                    html += '<button class="btn-update-nb" data-id="' + id + '" data-name="' + displayName.replace(/"/g, "&quot;") + '">Update notebook</button>';
                     html += '<a href="executions.html?notebook_id=' + id + '">Executions</a>';
                     html += '<button class="danger btn-delete" data-id="' + id + '">Delete</button>';
                     html += "</div></td>";
@@ -501,6 +504,47 @@
                     e.target.disabled = false;
                     e.target.textContent = "Delete";
                 }
+            });
+
+            // Update notebook file (re-upload, preserves all other fields)
+            const updateFileInput = document.getElementById("updateFileInput");
+            let updateNbId = null;
+            let updateNbName = "";
+            content.addEventListener("click", (e) => {
+                if (!e.target.classList.contains("btn-update-nb")) return;
+                updateNbId = e.target.dataset.id;
+                updateNbName = e.target.dataset.name || "";
+                updateFileInput.value = "";
+                updateFileInput.click();
+            });
+            updateFileInput.addEventListener("change", async (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                if (!file.name.endsWith(".ipynb")) {
+                    alert("File must be .ipynb");
+                    return;
+                }
+                if (!confirm("Replace \"" + updateNbName + "\" with \"" + file.name + "\"?")) {
+                    updateFileInput.value = "";
+                    return;
+                }
+                const reader = new FileReader();
+                reader.onload = async function () {
+                    const b64 = btoa(new Uint8Array(reader.result).reduce((s, b) => s + String.fromCharCode(b), ""));
+                    const res = await fetch(CONFIG.apiBaseUrl + "/api/notebooks/" + encodeURIComponent(updateNbId), {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ content: b64 }),
+                    });
+                    if (res.ok) {
+                        window.location.reload();
+                    } else {
+                        const err = await res.json().catch(() => ({}));
+                        alert("Update failed: " + (err.error || res.status));
+                        updateFileInput.value = "";
+                    }
+                };
+                reader.readAsArrayBuffer(file);
             });
 
             // Run dialog

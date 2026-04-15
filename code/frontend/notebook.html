@@ -48,6 +48,8 @@
         <span class="hidden" id="execOutputLabel" style="font-size:14px;font-weight:600;color:#555;">Execution Output</span>
         <button class="btn-exec hidden" id="runBtn">Run</button>
         <button class="btn-schedule hidden" id="editBtn">Edit</button>
+        <button class="btn-schedule hidden" id="updateBtn">Update notebook</button>
+        <input type="file" id="updateFileInput" accept=".ipynb" style="display:none;">
         <a class="btn-stop" id="stopBtn" href="#">Stop Session</a>
         <button class="btn-executions hidden" id="execBtn">Executions</button>
     </div>
@@ -138,6 +140,44 @@
             if (id) {
                 document.getElementById("runBtn").classList.remove("hidden");
                 document.getElementById("editBtn").classList.remove("hidden");
+                document.getElementById("updateBtn").classList.remove("hidden");
+
+                // Update notebook file (re-upload, preserves all other fields)
+                const updateFileInput = document.getElementById("updateFileInput");
+                document.getElementById("updateBtn").addEventListener("click", () => {
+                    updateFileInput.value = "";
+                    updateFileInput.click();
+                });
+                updateFileInput.addEventListener("change", (e) => {
+                    const file = e.target.files[0];
+                    if (!file) return;
+                    if (!file.name.endsWith(".ipynb")) {
+                        alert("File must be .ipynb");
+                        return;
+                    }
+                    const currentName = (currentNb && currentNb.name) || "this notebook";
+                    if (!confirm("Replace \"" + currentName + "\" with \"" + file.name + "\"?")) {
+                        updateFileInput.value = "";
+                        return;
+                    }
+                    const reader = new FileReader();
+                    reader.onload = async function () {
+                        const b64 = btoa(new Uint8Array(reader.result).reduce((s, b) => s + String.fromCharCode(b), ""));
+                        const res = await fetch(CONFIG.apiBaseUrl + "/api/notebooks/" + encodeURIComponent(id), {
+                            method: "PATCH",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ content: b64 }),
+                        });
+                        if (res.ok) {
+                            window.location.reload();
+                        } else {
+                            const err = await res.json().catch(() => ({}));
+                            alert("Update failed: " + (err.error || res.status));
+                            updateFileInput.value = "";
+                        }
+                    };
+                    reader.readAsArrayBuffer(file);
+                });
 
                 // Run dialog
                 const dialog = document.getElementById("runDialog");

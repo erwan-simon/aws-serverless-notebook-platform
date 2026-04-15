@@ -1,10 +1,14 @@
+import base64
 import json
 import logging
 import os
 import re
+from datetime import datetime, timezone
 
 import boto3
 from botocore.exceptions import ClientError
+import nbformat
+from nbconvert import HTMLExporter
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -88,6 +92,42 @@ def handler(event, context):
     expr_remove = []
     attr_names = {}
     attr_values = {}
+
+    # Notebook file content
+    if "content" in body:
+        try:
+            raw = base64.b64decode(body["content"])
+        except Exception:
+            return {
+                "statusCode": 400,
+                "headers": HEADERS,
+                "body": json.dumps({"error": "Invalid base64 content"}),
+            }
+        try:
+            nb = nbformat.reads(raw.decode("utf-8"), as_version=4)
+            HTMLExporter().from_notebook_node(nb)
+        except Exception as e:
+            return {
+                "statusCode": 400,
+                "headers": HEADERS,
+                "body": json.dumps({"error": f"Invalid notebook: {e}"}),
+            }
+        s3 = boto3.client("s3")
+        bucket = os.environ["NOTEBOOKS_BUCKET"]
+        s3.put_object(
+            Bucket=bucket,
+            Key=notebook["s3_key"],
+            Body=raw,
+            ContentType="application/x-ipynb+json",
+        )
+        rendered_s3_key = notebook.get("rendered_s3_key")
+        if rendered_s3_key:
+            s3.delete_object(Bucket=bucket, Key=rendered_s3_key)
+            attr_names["#rendered_s3_key"] = "rendered_s3_key"
+            expr_remove.append("#rendered_s3_key")
+        attr_names["#uploaded_at"] = "uploaded_at"
+        expr_set.append("#uploaded_at = :uploaded_at")
+        attr_values[":uploaded_at"] = datetime.now(timezone.utc).isoformat()
 
     # Labels
     if "labels" in body:
