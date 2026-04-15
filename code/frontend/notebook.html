@@ -91,6 +91,8 @@
             <div style="margin-top: 10px;">
                 <label for="editNbCron">Cron Expression <a href="https://docs.aws.amazon.com/scheduler/latest/UserGuide/schedule-types.html" target="_blank" style="font-weight:400; font-size:12px; color:#1565c0; text-decoration:none;">syntax reference &#8599;</a></label>
                 <input type="text" id="editNbCron" placeholder="cron(0 9 * * ? *)">
+                <label for="editNbTimezone">Timezone</label>
+                <select id="editNbTimezone"></select>
                 <label for="editNbSchedConfig">Configuration</label>
                 <select id="editNbSchedConfig"></select>
                 <label for="editNbSchedVcpu">vCPU</label>
@@ -190,9 +192,22 @@
 
                 let editNbHadSchedule = false;
 
+                const browserTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+                const editNbTimezone = document.getElementById("editNbTimezone");
+
+                function populateTimezoneSelect(selectEl, existingTz) {
+                    const options = [browserTz];
+                    if ("UTC" !== browserTz) options.push("UTC");
+                    if (existingTz && options.indexOf(existingTz) === -1) options.push(existingTz);
+                    selectEl.innerHTML = options.map(tz => '<option value="' + tz + '">' + tz + '</option>').join("");
+                    selectEl.value = existingTz || browserTz;
+                }
+
                 document.getElementById("editBtn").addEventListener("click", () => {
                     const labels = (currentNb && currentNb.labels) || [];
                     const cron = (currentNb && currentNb.schedule_cron) || "";
+                    const existingTz = (currentNb && currentNb.schedule_timezone) || "";
+                    populateTimezoneSelect(editNbTimezone, existingTz);
                     editNbLabelsInput.setLabels(labels);
                     editNbCron.value = cron;
                     editNbHadSchedule = !!cron;
@@ -234,6 +249,7 @@
                     if (cronVal) {
                         const sCfg = getSelectedConfig(editNbSchedConfig);
                         patchBody.schedule_cron = cronVal;
+                        patchBody.schedule_timezone = editNbTimezone.value;
                         patchBody.schedule_iam_role_arn = sCfg.iam_role_arn;
                         patchBody.schedule_ecr_image_uri = sCfg.ecr_image_uri;
                         patchBody.schedule_vcpu = parseInt(editNbSchedVcpu.value);
@@ -307,7 +323,8 @@
                             items += '<div class="meta-item"><span class="meta-label">Last Status</span> <span class="status-badge status-' + st + '">' + nb.last_execution_status + '</span></div>';
                         }
                         if (nb.schedule_cron) {
-                            items += '<div class="meta-item"><span class="meta-label">Schedule</span> <span class="sched-badge">' + nb.schedule_cron + '</span></div>';
+                            const tz = nb.schedule_timezone || "UTC";
+                            items += '<div class="meta-item"><span class="meta-label">Schedule</span> <span class="sched-badge">' + nb.schedule_cron + '</span> <span class="meta-value" style="color:#888;font-size:12px;">(' + tz + ')</span></div>';
                         }
                         document.getElementById("nbMetaGrid").innerHTML = items;
                         meta.style.display = "block";

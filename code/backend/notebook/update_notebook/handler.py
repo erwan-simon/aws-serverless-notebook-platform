@@ -39,27 +39,50 @@ def _sync_labels(labels, labels_table):
 
 def handler(event, context):
     if event.get("headers", {}).get("x-origin-verify") != _origin_secret:
-        return {"statusCode": 403, "headers": HEADERS, "body": json.dumps({"error": "Forbidden"})}
+        return {
+            "statusCode": 403,
+            "headers": HEADERS,
+            "body": json.dumps({"error": "Forbidden"}),
+        }
 
-    claims = event.get("requestContext", {}).get("authorizer", {}).get("jwt", {}).get("claims", {})
+    claims = (
+        event.get("requestContext", {})
+        .get("authorizer", {})
+        .get("jwt", {})
+        .get("claims", {})
+    )
     owner_id = claims.get("sub", "")
     owner_email = claims.get("email", "")
     if not owner_id:
-        return {"statusCode": 401, "headers": HEADERS, "body": json.dumps({"error": "Missing user identity"})}
+        return {
+            "statusCode": 401,
+            "headers": HEADERS,
+            "body": json.dumps({"error": "Missing user identity"}),
+        }
 
     notebook_id = event.get("pathParameters", {}).get("id", "")
     if not notebook_id:
-        return {"statusCode": 400, "headers": HEADERS, "body": json.dumps({"error": "Missing notebook id"})}
+        return {
+            "statusCode": 400,
+            "headers": HEADERS,
+            "body": json.dumps({"error": "Missing notebook id"}),
+        }
 
     dynamodb = boto3.resource("dynamodb")
     table = dynamodb.Table(os.environ["NOTEBOOKS_TABLE"])
 
     notebook = table.get_item(Key={"id": notebook_id}).get("Item")
     if not notebook:
-        return {"statusCode": 404, "headers": HEADERS, "body": json.dumps({"error": "Notebook not found"})}
+        return {
+            "statusCode": 404,
+            "headers": HEADERS,
+            "body": json.dumps({"error": "Notebook not found"}),
+        }
 
     body = json.loads(event.get("body", "{}") or "{}")
-    logger.info("Updating notebook: id=%s, body keys=%s", notebook_id, list(body.keys()))
+    logger.info(
+        "Updating notebook: id=%s, body keys=%s", notebook_id, list(body.keys())
+    )
 
     expr_set = []
     expr_remove = []
@@ -71,7 +94,11 @@ def handler(event, context):
         labels = list(set(body["labels"]))
         err = _validate_labels(labels)
         if err:
-            return {"statusCode": 400, "headers": HEADERS, "body": json.dumps({"error": err})}
+            return {
+                "statusCode": 400,
+                "headers": HEADERS,
+                "body": json.dumps({"error": err}),
+            }
         attr_names["#labels"] = "labels"
         expr_set.append("#labels = :labels")
         attr_values[":labels"] = labels
@@ -86,7 +113,15 @@ def handler(event, context):
             except ClientError as e:
                 if e.response["Error"]["Code"] != "ResourceNotFoundException":
                     raise
-        for field in ("schedule_cron", "schedule_role_arn", "schedule_image_uri", "schedule_name", "schedule_vcpu", "schedule_memory"):
+        for field in (
+            "schedule_cron",
+            "schedule_timezone",
+            "schedule_role_arn",
+            "schedule_image_uri",
+            "schedule_name",
+            "schedule_vcpu",
+            "schedule_memory",
+        ):
             attr_names[f"#{field}"] = field
             expr_remove.append(f"#{field}")
 
@@ -96,9 +131,18 @@ def handler(event, context):
         ecr_image_uri = body.get("schedule_ecr_image_uri", "")
         vcpu = body.get("schedule_vcpu")
         memory = body.get("schedule_memory")
+        schedule_timezone = body.get("schedule_timezone") or "UTC"
 
         if not cron_expression or not iam_role_arn or not ecr_image_uri:
-            return {"statusCode": 400, "headers": HEADERS, "body": json.dumps({"error": "schedule_cron, schedule_iam_role_arn, and schedule_ecr_image_uri are required"})}
+            return {
+                "statusCode": 400,
+                "headers": HEADERS,
+                "body": json.dumps(
+                    {
+                        "error": "schedule_cron, schedule_iam_role_arn, and schedule_ecr_image_uri are required"
+                    }
+                ),
+            }
 
         environment_name = os.environ["ENVIRONMENT_NAME"]
         scheduler_role_arn = os.environ["SCHEDULER_ROLE_ARN"]
@@ -109,23 +153,27 @@ def handler(event, context):
         schedule_kwargs = dict(
             Name=schedule_name,
             ScheduleExpression=cron_expression,
-            ScheduleExpressionTimezone="UTC",
+            ScheduleExpressionTimezone=schedule_timezone,
             FlexibleTimeWindow={"Mode": "OFF"},
             Target={
                 "Arn": run_notebook_lambda_arn,
                 "RoleArn": scheduler_role_arn,
-                "Input": json.dumps({
-                    k: v for k, v in {
-                        "source": "scheduler",
-                        "notebook_id": notebook_id,
-                        "iam_role_arn": iam_role_arn,
-                        "ecr_image_uri": ecr_image_uri,
-                        "owner_id": owner_id,
-                        "owner_email": owner_email,
-                        "vcpu": vcpu,
-                        "memory": memory,
-                    }.items() if v is not None
-                }),
+                "Input": json.dumps(
+                    {
+                        k: v
+                        for k, v in {
+                            "source": "scheduler",
+                            "notebook_id": notebook_id,
+                            "iam_role_arn": iam_role_arn,
+                            "ecr_image_uri": ecr_image_uri,
+                            "owner_id": owner_id,
+                            "owner_email": owner_email,
+                            "vcpu": vcpu,
+                            "memory": memory,
+                        }.items()
+                        if v is not None
+                    }
+                ),
             },
             ActionAfterCompletion="NONE",
         )
@@ -135,12 +183,17 @@ def handler(event, context):
             if e.response["Error"]["Code"] == "ConflictException":
                 scheduler.update_schedule(**schedule_kwargs)
             elif e.response["Error"]["Code"] == "ValidationException":
-                return {"statusCode": 400, "headers": HEADERS, "body": json.dumps({"error": e.response["Error"]["Message"]})}
+                return {
+                    "statusCode": 400,
+                    "headers": HEADERS,
+                    "body": json.dumps({"error": e.response["Error"]["Message"]}),
+                }
             else:
                 raise
 
         schedule_fields = {
             "schedule_cron": cron_expression,
+            "schedule_timezone": schedule_timezone,
             "schedule_role_arn": iam_role_arn,
             "schedule_image_uri": ecr_image_uri,
             "schedule_name": schedule_name,
@@ -153,7 +206,11 @@ def handler(event, context):
             attr_values[f":{field}"] = value
 
     if not expr_set and not expr_remove:
-        return {"statusCode": 400, "headers": HEADERS, "body": json.dumps({"error": "No fields to update"})}
+        return {
+            "statusCode": 400,
+            "headers": HEADERS,
+            "body": json.dumps({"error": "No fields to update"}),
+        }
 
     expression = ""
     if expr_set:
@@ -173,6 +230,14 @@ def handler(event, context):
         labels_table = dynamodb.Table(os.environ["LABELS_TABLE"])
         _sync_labels(body["labels"], labels_table)
 
-    logger.info("Notebook updated: id=%s, labels=%s, schedule=%s", notebook_id,
-                body.get("labels"), body.get("schedule_cron", "none"))
-    return {"statusCode": 200, "headers": HEADERS, "body": json.dumps({"message": "Notebook updated"})}
+    logger.info(
+        "Notebook updated: id=%s, labels=%s, schedule=%s",
+        notebook_id,
+        body.get("labels"),
+        body.get("schedule_cron", "none"),
+    )
+    return {
+        "statusCode": 200,
+        "headers": HEADERS,
+        "body": json.dumps({"message": "Notebook updated"}),
+    }
