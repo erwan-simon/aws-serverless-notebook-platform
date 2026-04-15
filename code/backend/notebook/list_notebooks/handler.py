@@ -65,6 +65,13 @@ def handler(event, context):
 
     result = []
     for nb in notebooks:
+        if "name" not in nb:
+            logger.warning(
+                "Deleting malformed notebook row (missing 'name'): %s",
+                json.dumps(nb, default=str),
+            )
+            notebooks_table.delete_item(Key={"id": nb["id"]})
+            continue
         entry = {
             "id": nb["id"],
             "name": nb["name"],

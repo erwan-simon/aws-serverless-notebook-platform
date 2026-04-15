@@ -4,6 +4,10 @@ data "aws_iam_policy_document" "list_notebooks_lambda" {
     resources = [aws_dynamodb_table.notebooks.arn, aws_dynamodb_table.executions.arn]
   }
   statement {
+    actions   = ["dynamodb:DeleteItem"]
+    resources = [aws_dynamodb_table.notebooks.arn]
+  }
+  statement {
     actions = [
       "logs:CreateLogGroup",
       "logs:CreateLogStream",
