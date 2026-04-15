@@ -47,8 +47,7 @@
         <a class="btn-back" href="index.html">Home</a>
         <span class="hidden" id="execOutputLabel" style="font-size:14px;font-weight:600;color:#555;">Execution Output</span>
         <button class="btn-exec hidden" id="runBtn">Run</button>
-        <button class="btn-schedule hidden" id="schedBtn">Schedule</button>
-        <button class="btn-schedule hidden" id="unschedBtn" style="background:#ffebee;color:#c62828;">Unschedule</button>
+        <button class="btn-schedule hidden" id="editBtn">Edit</button>
         <a class="btn-stop" id="stopBtn" href="#">Stop Session</a>
         <button class="btn-executions hidden" id="execBtn">Executions</button>
     </div>
@@ -83,19 +82,29 @@
         </div>
     </dialog>
 
-    <dialog id="scheduleDialog">
-        <h3>Schedule Notebook</h3>
-        <label for="schedCron">Cron Expression <a href="https://docs.aws.amazon.com/scheduler/latest/UserGuide/schedule-types.html" target="_blank" style="font-weight:400; font-size:12px; color:#1565c0; text-decoration:none;">syntax reference &#8599;</a></label>
-        <input type="text" id="schedCron" placeholder="cron(0 9 * * ? *)" style="width:100%;padding:8px;margin-top:6px;border:1px solid #ccc;border-radius:4px;font-size:14px;box-sizing:border-box;">
-        <label for="schedConfig">Configuration</label>
-        <select id="schedConfig"></select>
-        <label for="schedVcpu">vCPU</label>
-        <select id="schedVcpu"></select>
-        <label for="schedMemory">Memory</label>
-        <select id="schedMemory"></select>
+    <dialog id="editNotebookDialog">
+        <h3>Edit Notebook</h3>
+        <label>Labels</label>
+        <div id="editNbLabelsContainer"></div>
+        <details style="margin-top: 14px; font-size: 13px;">
+            <summary style="cursor: pointer; font-weight: 600; color: #555;">Schedule</summary>
+            <div style="margin-top: 10px;">
+                <label for="editNbCron">Cron Expression <a href="https://docs.aws.amazon.com/scheduler/latest/UserGuide/schedule-types.html" target="_blank" style="font-weight:400; font-size:12px; color:#1565c0; text-decoration:none;">syntax reference &#8599;</a></label>
+                <input type="text" id="editNbCron" placeholder="cron(0 9 * * ? *)">
+                <label for="editNbSchedConfig">Configuration</label>
+                <select id="editNbSchedConfig"></select>
+                <label for="editNbSchedVcpu">vCPU</label>
+                <select id="editNbSchedVcpu"></select>
+                <label for="editNbSchedMemory">Memory</label>
+                <select id="editNbSchedMemory"></select>
+                <div style="margin-top: 10px;">
+                    <button type="button" class="btn-delete" id="editNbUnschedule" style="display:none;">Remove schedule</button>
+                </div>
+            </div>
+        </details>
         <div style="margin-top: 18px;">
-            <button class="btn-submit" id="schedSubmit">Schedule</button>
-            <button class="btn-cancel" id="schedCancel">Cancel</button>
+            <button class="btn-submit" id="editNbSubmit">Save</button>
+            <button class="btn-cancel" id="editNbCancel">Cancel</button>
         </div>
     </dialog>
 
@@ -121,10 +130,12 @@
                 });
             }
 
-            // Show Run & Schedule buttons only when viewing a notebook by id (not an execution output)
+            let currentNb = null;
+
+            // Show Run & Edit buttons only when viewing a notebook by id (not an execution output)
             if (id) {
                 document.getElementById("runBtn").classList.remove("hidden");
-                document.getElementById("schedBtn").classList.remove("hidden");
+                document.getElementById("editBtn").classList.remove("hidden");
 
                 // Run dialog
                 const dialog = document.getElementById("runDialog");
@@ -164,41 +175,85 @@
                     }
                 });
 
-                // Schedule dialog
-                const schedDialog = document.getElementById("scheduleDialog");
-                const schedConfig = document.getElementById("schedConfig");
-                const schedVcpu = document.getElementById("schedVcpu");
-                const schedMemory = document.getElementById("schedMemory");
-                const schedCron = document.getElementById("schedCron");
+                // Edit dialog (labels + schedule)
+                const editNbDialog = document.getElementById("editNotebookDialog");
+                const allLabels = await loadAllLabels();
+                const editNbLabelsInput = createLabelsInput(document.getElementById("editNbLabelsContainer"), allLabels);
+                const editNbSchedConfig = document.getElementById("editNbSchedConfig");
+                const editNbSchedVcpu = document.getElementById("editNbSchedVcpu");
+                const editNbSchedMemory = document.getElementById("editNbSchedMemory");
+                const editNbCron = document.getElementById("editNbCron");
+                const editNbUnschedule = document.getElementById("editNbUnschedule");
 
-                await loadConfigurationOptions(schedConfig, null, "notebook");
-                wireConfigSelects(schedConfig, schedVcpu, schedMemory);
+                await loadConfigurationOptions(editNbSchedConfig, null, "notebook");
+                wireConfigSelects(editNbSchedConfig, editNbSchedVcpu, editNbSchedMemory);
 
-                document.getElementById("schedBtn").addEventListener("click", () => schedDialog.showModal());
-                document.getElementById("schedCancel").addEventListener("click", () => schedDialog.close());
+                let editNbHadSchedule = false;
 
-                document.getElementById("schedSubmit").addEventListener("click", async () => {
-                    const btn = document.getElementById("schedSubmit");
-                    btn.disabled = true;
-                    btn.textContent = "Scheduling...";
-                    const schedRes = await fetch(CONFIG.apiBaseUrl + "/api/notebooks/" + encodeURIComponent(id) + "/schedule", {
-                        method: "POST",
+                document.getElementById("editBtn").addEventListener("click", () => {
+                    const labels = (currentNb && currentNb.labels) || [];
+                    const cron = (currentNb && currentNb.schedule_cron) || "";
+                    editNbLabelsInput.setLabels(labels);
+                    editNbCron.value = cron;
+                    editNbHadSchedule = !!cron;
+                    editNbUnschedule.style.display = cron ? "inline-block" : "none";
+                    editNbSchedConfig.selectedIndex = 0;
+                    const sCfg = getSelectedConfig(editNbSchedConfig);
+                    populateVcpuSelect(editNbSchedVcpu, editNbSchedMemory, sCfg.vcpu, sCfg.memory);
+                    if (currentNb) applyNotebookDefaults(currentNb, editNbSchedConfig, editNbSchedVcpu, editNbSchedMemory);
+                    editNbDialog.showModal();
+                });
+
+                document.getElementById("editNbCancel").addEventListener("click", () => editNbDialog.close());
+
+                editNbUnschedule.addEventListener("click", async () => {
+                    editNbUnschedule.disabled = true;
+                    editNbUnschedule.textContent = "Removing...";
+                    const res = await fetch(CONFIG.apiBaseUrl + "/api/notebooks/" + encodeURIComponent(id), {
+                        method: "PATCH",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                            cron_expression: schedCron.value,
-                            ...getSelectedConfig(schedConfig),
-                            vcpu: parseInt(schedVcpu.value),
-                            memory: parseInt(schedMemory.value),
-                        }),
+                        body: JSON.stringify({ unschedule: true }),
                     });
-                    if (schedRes.ok) {
-                        schedDialog.close();
-                        alert("Schedule saved!");
+                    if (res.ok) {
+                        editNbDialog.close();
+                        window.location.reload();
                     } else {
-                        const err = await schedRes.json().catch(() => ({}));
-                        alert("Schedule failed: " + (err.error || schedRes.status));
+                        const err = await res.json().catch(() => ({}));
+                        alert("Unschedule failed: " + (err.error || res.status));
+                        editNbUnschedule.disabled = false;
+                        editNbUnschedule.textContent = "Remove schedule";
+                    }
+                });
+
+                document.getElementById("editNbSubmit").addEventListener("click", async () => {
+                    const btn = document.getElementById("editNbSubmit");
+                    btn.disabled = true;
+                    btn.textContent = "Saving...";
+                    const patchBody = { labels: editNbLabelsInput.getLabels() };
+                    const cronVal = editNbCron.value.trim();
+                    if (cronVal) {
+                        const sCfg = getSelectedConfig(editNbSchedConfig);
+                        patchBody.schedule_cron = cronVal;
+                        patchBody.schedule_iam_role_arn = sCfg.iam_role_arn;
+                        patchBody.schedule_ecr_image_uri = sCfg.ecr_image_uri;
+                        patchBody.schedule_vcpu = parseInt(editNbSchedVcpu.value);
+                        patchBody.schedule_memory = parseInt(editNbSchedMemory.value);
+                    } else if (editNbHadSchedule) {
+                        patchBody.unschedule = true;
+                    }
+                    const res = await fetch(CONFIG.apiBaseUrl + "/api/notebooks/" + encodeURIComponent(id), {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(patchBody),
+                    });
+                    if (res.ok) {
+                        editNbDialog.close();
+                        window.location.reload();
+                    } else {
+                        const err = await res.json().catch(() => ({}));
+                        alert("Update failed: " + (err.error || res.status));
                         btn.disabled = false;
-                        btn.textContent = "Schedule";
+                        btn.textContent = "Save";
                     }
                 });
             }
@@ -237,6 +292,7 @@
                     const allNbs = await nbListRes.json();
                     const nb = Array.isArray(allNbs) ? allNbs.find(n => n.id === id) : null;
                     if (nb) {
+                        currentNb = nb;
                         const meta = document.getElementById("nbMeta");
                         document.getElementById("nbMetaTitle").textContent = nb.name || id;
 
@@ -252,29 +308,12 @@
                         }
                         if (nb.schedule_cron) {
                             items += '<div class="meta-item"><span class="meta-label">Schedule</span> <span class="sched-badge">' + nb.schedule_cron + '</span></div>';
-                            const unschedBtn = document.getElementById("unschedBtn");
-                            unschedBtn.classList.remove("hidden");
-                            unschedBtn.addEventListener("click", async () => {
-                                if (!confirm("Remove schedule for this notebook?")) return;
-                                unschedBtn.disabled = true;
-                                unschedBtn.textContent = "Removing...";
-                                const res = await fetch(CONFIG.apiBaseUrl + "/api/notebooks/" + encodeURIComponent(id) + "/schedule", { method: "DELETE" });
-                                if (res.ok) {
-                                    window.location.reload();
-                                } else {
-                                    const err = await res.json().catch(() => ({}));
-                                    alert("Unschedule failed: " + (err.error || res.status));
-                                    unschedBtn.disabled = false;
-                                    unschedBtn.textContent = "Unschedule";
-                                }
-                            });
                         }
                         document.getElementById("nbMetaGrid").innerHTML = items;
                         meta.style.display = "block";
 
-                        // Pre-fill run/schedule dialogs with notebook defaults
+                        // Pre-fill run dialog with notebook defaults
                         applyNotebookDefaults(nb, dialogConfig, dialogVcpu, dialogMemory);
-                        applyNotebookDefaults(nb, schedConfig, schedVcpu, schedMemory);
                     }
                 }
             }
