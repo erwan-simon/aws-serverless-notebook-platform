@@ -34,9 +34,10 @@ module "render_notebook" {
   origin_verify_secret_ssm_name = aws_ssm_parameter.cf_origin_secret.name
   iam_policy_json               = data.aws_iam_policy_document.render_notebook_lambda.json
   environment_variables = {
-    NOTEBOOKS_BUCKET = aws_s3_bucket.notebooks.id
-    NOTEBOOKS_TABLE  = aws_dynamodb_table.notebooks.name
-    EXECUTIONS_TABLE = aws_dynamodb_table.executions.name
+    NOTEBOOKS_BUCKET             = aws_s3_bucket.notebooks.id
+    NOTEBOOKS_TABLE              = aws_dynamodb_table.notebooks.name
+    EXECUTIONS_TABLE             = aws_dynamodb_table.executions.name
+    RENDERED_NOTEBOOKS_S3_PREFIX = local.rendered_notebooks_s3_prefix
   }
   tags_map = {
     Appli          = var.project_name

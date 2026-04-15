@@ -78,7 +78,7 @@ def handler(event, context):
             "body": json.dumps({"error": "Invalid base64 content"}),
         }
 
-    # Validate notebook by parsing and converting to HTML
+    # Validate notebook by parsing and converting to HTML, then strip outputs
     try:
         nb = nbformat.reads(raw.decode("utf-8"), as_version=4)
         exporter = HTMLExporter()
@@ -89,6 +89,11 @@ def handler(event, context):
             "headers": HEADERS,
             "body": json.dumps({"error": f"Invalid notebook: {e}"}),
         }
+    for cell in nb.cells:
+        if cell.get("cell_type") == "code":
+            cell["outputs"] = []
+            cell["execution_count"] = None
+    raw = nbformat.writes(nb).encode("utf-8")
 
     bucket = os.environ["NOTEBOOKS_BUCKET"]
     prefix = os.environ["NOTEBOOKS_S3_PREFIX"]

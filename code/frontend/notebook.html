@@ -155,8 +155,7 @@
                         alert("File must be .ipynb");
                         return;
                     }
-                    const currentName = (currentNb && currentNb.name) || "this notebook";
-                    if (!confirm("Replace \"" + currentName + "\" with \"" + file.name + "\"?")) {
+                    if (!confirm("Replace with the new notebook?")) {
                         updateFileInput.value = "";
                         return;
                     }

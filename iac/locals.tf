@@ -1,8 +1,9 @@
 locals {
-  stage_name          = terraform.workspace
-  environment_name    = "${var.project_name}_${local.domain_name}_${local.stage_name}"
-  domain_name         = "jupyter_sandbox"
-  notebooks_s3_prefix = "notebooks/"
+  stage_name                   = terraform.workspace
+  environment_name             = "${var.project_name}_${local.domain_name}_${local.stage_name}"
+  domain_name                  = "jupyter_sandbox"
+  notebooks_s3_prefix          = "notebooks/"
+  rendered_notebooks_s3_prefix = "rendered_notebooks/"
 
   session_idle_timeout_minutes = 60
 

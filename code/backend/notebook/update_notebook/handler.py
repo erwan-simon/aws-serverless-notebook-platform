@@ -112,6 +112,11 @@ def handler(event, context):
                 "headers": HEADERS,
                 "body": json.dumps({"error": f"Invalid notebook: {e}"}),
             }
+        for cell in nb.cells:
+            if cell.get("cell_type") == "code":
+                cell["outputs"] = []
+                cell["execution_count"] = None
+        raw = nbformat.writes(nb).encode("utf-8")
         s3 = boto3.client("s3")
         bucket = os.environ["NOTEBOOKS_BUCKET"]
         s3.put_object(

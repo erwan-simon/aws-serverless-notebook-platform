@@ -21,15 +21,23 @@ _origin_secret = _ssm.get_parameter(
 )["Parameter"]["Value"]
 assert _origin_secret, "Failed to retrieve origin verify secret from SSM"
 
-RENDERED_PREFIX = "rendered_notebooks/"
+RENDERED_PREFIX = os.environ["RENDERED_NOTEBOOKS_S3_PREFIX"]
 
 
 def _error(status, msg):
-    return {"statusCode": status, "headers": {**HEADERS, "Content-Type": "application/json"}, "body": json.dumps({"error": msg})}
+    return {
+        "statusCode": status,
+        "headers": {**HEADERS, "Content-Type": "application/json"},
+        "body": json.dumps({"error": msg}),
+    }
 
 
 def _html_response(html):
-    return {"statusCode": 200, "headers": {**HEADERS, "Content-Type": "text/html"}, "body": html}
+    return {
+        "statusCode": 200,
+        "headers": {**HEADERS, "Content-Type": "text/html"},
+        "body": html,
+    }
 
 
 def _render_and_cache(s3, bucket, source_s3_key, rendered_s3_key):
@@ -37,7 +45,9 @@ def _render_and_cache(s3, bucket, source_s3_key, rendered_s3_key):
     nb = nbformat.reads(obj["Body"].read().decode(), as_version=4)
     exporter = HTMLExporter()
     html, _ = exporter.from_notebook_node(nb)
-    s3.put_object(Bucket=bucket, Key=rendered_s3_key, Body=html.encode(), ContentType="text/html")
+    s3.put_object(
+        Bucket=bucket, Key=rendered_s3_key, Body=html.encode(), ContentType="text/html"
+    )
     return html
 
 
@@ -59,7 +69,11 @@ def handler(event, context):
     dynamodb = boto3.resource("dynamodb")
     bucket = os.environ["NOTEBOOKS_BUCKET"]
 
-    logger.info("Rendering: notebook_id=%s, execution_id=%s", notebook_id or "N/A", execution_id or "N/A")
+    logger.info(
+        "Rendering: notebook_id=%s, execution_id=%s",
+        notebook_id or "N/A",
+        execution_id or "N/A",
+    )
 
     if notebook_id:
         table = dynamodb.Table(os.environ["NOTEBOOKS_TABLE"])

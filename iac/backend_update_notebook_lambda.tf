@@ -4,6 +4,10 @@ data "aws_iam_policy_document" "update_notebook_lambda" {
     resources = ["${aws_s3_bucket.notebooks.arn}/${local.notebooks_s3_prefix}*"]
   }
   statement {
+    actions   = ["s3:DeleteObject"]
+    resources = ["${aws_s3_bucket.notebooks.arn}/${local.rendered_notebooks_s3_prefix}*"]
+  }
+  statement {
     actions   = ["dynamodb:GetItem", "dynamodb:UpdateItem"]
     resources = [aws_dynamodb_table.notebooks.arn]
   }
