@@ -18,10 +18,10 @@ locals {
   image_tag = sha1(jsonencode(local.rebuild_trigger))
 }
 
-module "build_base_image" {
+module "build_default_configuration_image" {
   source = "git::https://github.com/erwan-simon/terraform-module-build-image-and-push-to-ecr//iac/?ref=v1.0.2"
 
-  ecr_name = "${local.environment_name}_base_image"
+  ecr_name = "${local.environment_name}_default_configuration"
   tags_map = {
     (local.security_tag_key) = local.security_tag_value
   }

@@ -173,8 +173,8 @@ MANAGED_CONFIGURATIONS = jsonencode([
   {
     id            = "default"
     name          = "Default"
-    ecr_image_uri = "${module.build_base_image.ecr_url}:${local.image_tag}"
-    iam_role_arn  = aws_iam_role.ecs_execution.arn
+    ecr_image_uri = "${module.build_default_configuration_image.ecr_url}:${local.image_tag}"
+    iam_role_arn  = aws_iam_role.default_configuration.arn
     vcpu          = local.task_default_vcpu
     memory        = local.task_default_memory
   },
@@ -195,7 +195,7 @@ Custom IAM roles **must**:
 - Have permission to write CloudWatch logs
 - **Carry the security allowlist tag** `{project_name}:{domain_name} = allowed` (see the Security section). The stack is policy-restricted to only pass roles carrying this tag.
 
-Refer to `iac/iam_role_ecs_execution.tf` for a working example.
+Refer to `iac/iam_role_default_configuration.tf` for a working example.
 
 Custom ECR repositories referenced from a configuration must also carry the `{project_name}:{domain_name} = allowed` tag — the ECS execution role is policy-restricted to pull only from tagged repositories.
 

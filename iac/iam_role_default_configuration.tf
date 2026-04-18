@@ -1,14 +1,14 @@
-resource "aws_iam_role" "ecs_execution" {
-  name = "${local.environment_name}_ecs_execution"
+resource "aws_iam_role" "default_configuration" {
+  name = "${local.environment_name}_default_configuration"
 
-  assume_role_policy = data.aws_iam_policy_document.ecs_execution_assume.json
+  assume_role_policy = data.aws_iam_policy_document.default_configuration_assume.json
 
   tags = {
     (local.security_tag_key) = local.security_tag_value
   }
 }
 
-data "aws_iam_policy_document" "ecs_execution_assume" {
+data "aws_iam_policy_document" "default_configuration_assume" {
   statement {
     actions = ["sts:AssumeRole"]
 
@@ -20,18 +20,18 @@ data "aws_iam_policy_document" "ecs_execution_assume" {
   }
 }
 
-resource "aws_iam_policy" "ecs_execution" {
-  name   = "${local.environment_name}_ecs_execution"
-  policy = data.aws_iam_policy_document.ecs_execution.json
+resource "aws_iam_policy" "default_configuration" {
+  name   = "${local.environment_name}_default_configuration"
+  policy = data.aws_iam_policy_document.default_configuration.json
 }
 
-resource "aws_iam_policy_attachment" "ecs_execution" {
-  name       = "${local.environment_name}_ecs_execution"
-  roles      = [aws_iam_role.ecs_execution.name]
-  policy_arn = aws_iam_policy.ecs_execution.arn
+resource "aws_iam_policy_attachment" "default_configuration" {
+  name       = "${local.environment_name}_default_configuration"
+  roles      = [aws_iam_role.default_configuration.name]
+  policy_arn = aws_iam_policy.default_configuration.arn
 }
 
-data "aws_iam_policy_document" "ecs_execution" {
+data "aws_iam_policy_document" "default_configuration" {
   statement {
     actions = [
       "athena:*",

@@ -71,7 +71,7 @@ module "run_notebook" {
     ENVIRONMENT_NAME       = local.environment_name
     ECS_CLUSTER_NAME       = aws_ecs_cluster.main.name
     SECURITY_GROUP_ID      = aws_security_group.ecs_service.id
-    ECS_EXECUTION_ROLE_ARN = aws_iam_role.ecs_execution.arn
+    ECS_EXECUTION_ROLE_ARN = aws_iam_role.default_configuration.arn
     NOTEBOOKS_BUCKET       = aws_s3_bucket.notebooks.id
     NOTEBOOKS_TABLE        = aws_dynamodb_table.notebooks.name
     EXECUTIONS_TABLE       = aws_dynamodb_table.executions.name

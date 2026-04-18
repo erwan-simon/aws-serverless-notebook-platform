@@ -86,7 +86,7 @@ module "run_session" {
     ENVIRONMENT_NAME             = local.environment_name
     ECS_CLUSTER_NAME             = aws_ecs_cluster.main.name
     SECURITY_GROUP_ID            = aws_security_group.ecs_service.id
-    ECS_EXECUTION_ROLE_ARN       = aws_iam_role.ecs_execution.arn
+    ECS_EXECUTION_ROLE_ARN       = aws_iam_role.default_configuration.arn
     SUBNET_IDS                   = join(",", tolist(data.aws_subnets.public.ids))
     EFS_FILE_SYSTEM_ID           = aws_efs_file_system.sessions.id
     EFS_SHARED_ACCESS_POINT_ID   = aws_efs_access_point.shared.id

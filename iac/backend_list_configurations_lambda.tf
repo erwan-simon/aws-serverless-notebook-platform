@@ -46,8 +46,8 @@ module "list_configurations" {
       {
         id            = "default"
         name          = "Default"
-        ecr_image_uri = "${module.build_base_image.ecr_url}:${local.image_tag}"
-        iam_role_arn  = aws_iam_role.ecs_execution.arn
+        ecr_image_uri = "${module.build_default_configuration_image.ecr_url}:${local.image_tag}"
+        iam_role_arn  = aws_iam_role.default_configuration.arn
         vcpu          = local.task_default_vcpu
         memory        = local.task_default_memory
       },
