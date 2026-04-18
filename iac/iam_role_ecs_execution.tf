@@ -44,6 +44,19 @@ data "aws_iam_policy_document" "ecs_execution" {
   }
   statement {
     actions = [
+      "athena:GetWorkGroup",
+      "athena:StartQueryExecution",
+      "athena:StopQueryExecution",
+      "athena:GetQueryExecution",
+      "athena:GetQueryResults",
+      "athena:GetQueryResultsStream",
+      "athena:ListQueryExecutions",
+      "athena:BatchGetQueryExecution",
+    ]
+    resources = [aws_athena_workgroup.default.arn]
+  }
+  statement {
+    actions = [
       "s3:PutObject"
     ]
     resources = [
