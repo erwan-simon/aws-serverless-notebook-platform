@@ -10,7 +10,7 @@
         h1 { border-bottom: 2px solid #eee; padding-bottom: 10px; }
         .nb-name-link { display: inline-block; color: #7b1fa2; text-decoration: none; font-weight: 600; font-size: 15px; padding: 5px 14px; border-radius: 6px; border: 1px solid #e0d4f5; background: #faf5ff; transition: all 0.15s; }
         .nb-name-link:hover { background: #f3e5f5; border-color: #ce93d8; color: #6a1b9a; }
-        a.btn { display: inline-block; padding: 5px 14px; border-radius: 4px; text-decoration: none; font-size: 13px; }
+        a.btn, button.btn { display: inline-block; padding: 5px 14px; border-radius: 4px; text-decoration: none; font-size: 13px; border: none; cursor: pointer; font-family: inherit; }
         .nav-link { display: inline-block; padding: 6px 14px; border-radius: 6px; text-decoration: none; color: #7b1fa2; border: 1px solid #e0d4f5; background: #faf5ff; font-weight: 500; transition: all 0.15s; }
         .nav-link:hover { background: #f3e5f5; border-color: #ce93d8; color: #6a1b9a; }
         .btn-run { background: #e8f5e9; color: #2e7d32; }
@@ -52,7 +52,7 @@
     <div class="session-bar" id="sessionCard">
         <h2>Session</h2>
         <div id="sessionStopped">
-            <a class="btn btn-run" href="run.html">Launch Session</a>
+            <button class="btn btn-run" id="launchSessionBtn">Launch Session</button>
         </div>
         <div id="sessionActive" style="display:none; contents;">
             <div class="session-info">
@@ -107,6 +107,25 @@
         <div style="margin-top: 18px;">
             <button class="btn-submit" id="uploadSubmit">Upload</button>
             <button class="btn-cancel" id="uploadCancel">Cancel</button>
+        </div>
+    </dialog>
+
+    <dialog id="launchSessionDialog" style="width: 360px; box-sizing: border-box;">
+        <h3>Launch Session</h3>
+        <label for="launchSessionType">Session type</label>
+        <select id="launchSessionType">
+            <option value="jupyter">JupyterLab (notebook)</option>
+            <option value="codeserver">VS Code (code-server)</option>
+        </select>
+        <label for="launchSessionConfig">Configuration</label>
+        <select id="launchSessionConfig"></select>
+        <label for="launchSessionVcpu">vCPU</label>
+        <select id="launchSessionVcpu"></select>
+        <label for="launchSessionMemory">Memory</label>
+        <select id="launchSessionMemory"></select>
+        <div style="margin-top: 18px;">
+            <button class="btn-submit" id="launchSessionSubmit">Launch</button>
+            <button class="btn-cancel" id="launchSessionCancel">Cancel</button>
         </div>
     </dialog>
 
@@ -189,7 +208,9 @@
                 if (session.status === "running") {
                     sessionBtn.href = session.url;
                     sessionBtn.target = "_blank";
-                    sessionBtn.textContent = "Open Session";
+                    sessionBtn.textContent = session.session_type === "codeserver"
+                        ? "Open VS Code"
+                        : "Open Session";
                 } else {
                     sessionBtn.href = "status.html";
                     sessionBtn.textContent = "View Session";
@@ -543,6 +564,47 @@
                     }
                 };
                 reader.readAsArrayBuffer(file);
+            });
+
+            // Launch Session dialog
+            const launchSessionDialog = document.getElementById("launchSessionDialog");
+            const launchSessionType = document.getElementById("launchSessionType");
+            const launchSessionConfig = document.getElementById("launchSessionConfig");
+            const launchSessionVcpu = document.getElementById("launchSessionVcpu");
+            const launchSessionMemory = document.getElementById("launchSessionMemory");
+
+            async function reloadLaunchSessionConfigs() {
+                const ctx = launchSessionType.value + "_session";
+                await loadConfigurationOptions(launchSessionConfig, null, ctx);
+                wireConfigSelects(launchSessionConfig, launchSessionVcpu, launchSessionMemory);
+            }
+            launchSessionType.addEventListener("change", reloadLaunchSessionConfigs);
+
+            const launchSessionBtn = document.getElementById("launchSessionBtn");
+            if (launchSessionBtn) {
+                launchSessionBtn.addEventListener("click", async () => {
+                    await reloadLaunchSessionConfigs();
+                    launchSessionDialog.showModal();
+                });
+            }
+            document.getElementById("launchSessionCancel").addEventListener("click", () => launchSessionDialog.close());
+            document.getElementById("launchSessionSubmit").addEventListener("click", async () => {
+                const submitBtn = document.getElementById("launchSessionSubmit");
+                submitBtn.disabled = true; submitBtn.textContent = "Launching...";
+                const res = await fetch(CONFIG.apiBaseUrl + "/api/sessions", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        ...getSelectedConfig(launchSessionConfig),
+                        vcpu: parseInt(launchSessionVcpu.value),
+                        memory: parseInt(launchSessionMemory.value),
+                        session_type: launchSessionType.value,
+                    }),
+                });
+                if (res.ok) { window.location.href = "session.html"; return; }
+                const err = await res.json().catch(() => ({}));
+                alert("Launch failed: " + (err.error || res.status));
+                submitBtn.disabled = false; submitBtn.textContent = "Launch";
             });
 
             // Run dialog

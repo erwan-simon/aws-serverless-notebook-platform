@@ -138,11 +138,19 @@ def handler(event, context):
     body = json.loads(event["body"])
     iam_role_arn = body["iam_role_arn"]
     ecr_image_uri = body["ecr_image_uri"]
+    session_type = body.get("session_type", "jupyter")
+    if session_type not in {"jupyter", "codeserver"}:
+        return {
+            "statusCode": 400,
+            "headers": HEADERS,
+            "body": json.dumps({"error": f"Invalid session_type: {session_type}"}),
+        }
     logger.info(
-        "Run session: user=%s, image=%s, role=%s",
+        "Run session: user=%s, image=%s, role=%s, type=%s",
         user_sub[:8],
         ecr_image_uri,
         iam_role_arn,
+        session_type,
     )
 
     environment_name = os.environ["ENVIRONMENT_NAME"]
@@ -250,6 +258,41 @@ def handler(event, context):
             _cleanup_alb_resources(elbv2, alb_listener_arn, service_name)
 
     tags = [{"key": k, "value": v} for k, v in resource_tags.items()]
+    tags.append({"key": "SessionType", "value": session_type})
+
+    if session_type == "jupyter":
+        app_port = 8888
+        container_command = (
+            f"exec jupyter lab --ip=0.0.0.0 --port={app_port} --allow-root"
+            f" --ServerApp.token=\"${{JUPYTER_TOKEN}}\" --ServerApp.password=''"
+            f" --ServerApp.notebook_dir=/home/user"
+            f" --ServerApp.base_url={base_url}"
+            f" --MappingKernelManager.cull_idle_timeout={idle_timeout_seconds}"
+            f" --MappingKernelManager.cull_connected=True"
+            f" --ServerApp.shutdown_no_activity_timeout={idle_timeout_seconds}"
+        )
+        health_path = f"{base_url}api"
+        health_check_command = [
+            "CMD-SHELL",
+            f"curl -sf http://localhost:{app_port}{health_path} >> /proc/1/fd/1 2>&1 || exit 1",
+        ]
+
+    else:
+        # code-server: auth is delegated to CloudFront JWT + x-origin-verify + WAF;
+        # the ALB is not reachable directly, so --auth none is acceptable here.
+        app_port = 8443
+        container_command = (
+            f"exec code-server --auth none --bind-addr 0.0.0.0:{app_port}"
+            " --disable-telemetry --disable-update-check /home/user"
+        )
+        # ALB listener rule strips the base_url prefix via url-rewrite transform,
+        # so code-server serves at / internally. TG health check hits the target
+        # directly (bypasses the listener rule), hence the unprefixed path.
+        health_path = "/healthz"
+        health_check_command = [
+            "CMD-SHELL",
+            f"curl -fksSL http://127.0.0.1:{app_port}{health_path} >> /proc/1/fd/1 2>&1 || exit 1",
+        ]
 
     try:
         ecr_image_uri = _resolve_latest_tag(ecr_image_uri)
@@ -281,19 +324,11 @@ def handler(event, context):
                     "image": ecr_image_uri,
                     "essential": True,
                     "entryPoint": ["/bin/bash", "-c"],
-                    "command": [
-                        f"exec jupyter lab --ip=0.0.0.0 --port=8888 --allow-root"
-                        f" --ServerApp.token=\"${{JUPYTER_TOKEN}}\" --ServerApp.password=''"
-                        f" --ServerApp.notebook_dir=/home/user"
-                        f" --ServerApp.base_url={base_url}"
-                        f" --MappingKernelManager.cull_idle_timeout={idle_timeout_seconds}"
-                        f" --MappingKernelManager.cull_connected=True"
-                        f" --ServerApp.shutdown_no_activity_timeout={idle_timeout_seconds}"
-                    ],
+                    "command": [container_command],
                     "portMappings": [
                         {
-                            "containerPort": 8888,
-                            "hostPort": 8888,
+                            "containerPort": app_port,
+                            "hostPort": app_port,
                             "protocol": "tcp",
                         }
                     ],
@@ -320,12 +355,17 @@ def handler(event, context):
                             "name": "HOME",
                             "value": "/home/user",
                         },
+                        {
+                            "name": "BASE_URL",
+                            "value": base_url,
+                        },
+                        {
+                            "name": "SESSION_TYPE",
+                            "value": session_type,
+                        },
                     ],
                     "healthCheck": {
-                        "command": [
-                            "CMD-SHELL",
-                            f"curl -sf http://localhost:8888{base_url}api >> /proc/1/fd/1 2>&1 || exit 1",
-                        ],
+                        "command": health_check_command,
                         "interval": 60,
                         "timeout": 5,
                         "retries": 5,
@@ -394,11 +434,11 @@ def handler(event, context):
     tg_resp = elbv2.create_target_group(
         Name=tg_name,
         Protocol="HTTP",
-        Port=8888,
+        Port=app_port,
         VpcId=vpc_id,
         TargetType="ip",
         HealthCheckProtocol="HTTP",
-        HealthCheckPath=f"{base_url}api",
+        HealthCheckPath=health_path,
         HealthCheckIntervalSeconds=30,
         HealthyThresholdCount=2,
         UnhealthyThresholdCount=3,
@@ -410,13 +450,13 @@ def handler(event, context):
     # Create ALB listener rule for path-based routing
     # Use a hash of the service name as priority (1-50000)
     priority = (hash(service_name) % 49999) + 1
-    elbv2.create_rule(
+    create_rule_kwargs = dict(
         ListenerArn=alb_listener_arn,
         Priority=priority,
         Conditions=[
             {
                 "Field": "path-pattern",
-                "Values": [f"{base_url}*", base_url.rstrip("/")],
+                "Values": [f"{base_url}*"],
             }
         ],
         Actions=[
@@ -428,6 +468,21 @@ def handler(event, context):
         Tags=[{"Key": "SessionService", "Value": service_name}]
         + [{"Key": item["key"], "Value": item["value"]} for item in tags],
     )
+    if session_type == "codeserver":
+        create_rule_kwargs["Transforms"] = [
+            {
+                "Type": "url-rewrite",
+                "UrlRewriteConfig": {
+                    "Rewrites": [
+                        {
+                            "Regex": f"^{re.escape(base_url)}(.*)$",
+                            "Replace": "/$1",
+                        }
+                    ]
+                },
+            }
+        ]
+    elbv2.create_rule(**create_rule_kwargs)
 
     ecs.create_service(
         cluster=cluster_name,
@@ -448,7 +503,7 @@ def handler(event, context):
             {
                 "targetGroupArn": target_group_arn,
                 "containerName": service_name,
-                "containerPort": 8888,
+                "containerPort": app_port,
             }
         ],
         tags=tags,

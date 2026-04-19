@@ -114,7 +114,7 @@
         </div>
 
         <div class="actions">
-            <a class="btn btn-open" id="openBtn" href="#" style="display:none;" target="_blank">Open JupyterLab</a>
+            <a class="btn btn-open" id="openBtn" href="#" style="display:none;" target="_blank">Open</a>
             <button class="btn-stop" id="stopBtn" style="display:none;">Stop Session</button>
             <a class="btn btn-back" href="index.html">Back</a>
         </div>
@@ -230,6 +230,9 @@
                 if (session.status === "running" && session.url) {
                     const openBtn = document.getElementById("openBtn");
                     openBtn.href = session.url;
+                    openBtn.textContent = session.session_type === "codeserver"
+                        ? "Open VS Code"
+                        : "Open JupyterLab";
                     openBtn.style.display = "inline-block";
                 }
 

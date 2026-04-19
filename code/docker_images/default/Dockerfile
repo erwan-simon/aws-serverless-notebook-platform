@@ -4,6 +4,7 @@ WORKDIR /home/user
 USER root
 RUN apt-get update && apt-get install -y awscli curl && rm -rf /var/lib/apt/lists/*
 RUN pip install --no-cache-dir papermill uv jupyterlab-lsp jedi-language-server
+RUN curl -fsSL https://code-server.dev/install.sh | sh
 
 COPY pyproject.toml /opt/default-venv-config/pyproject.toml
 RUN uv venv /opt/default-venv \

@@ -172,6 +172,8 @@ def handler(event, context):
             force_revalidation,
         )
         updates["validation_notebook_execution_id"] = None
+        updates["validation_jupyter_session_execution_id"] = None
+        updates["validation_codeserver_session_execution_id"] = None
         updates["validation_session_execution_id"] = None
     else:
         logger.info("No infra fields changed, keeping existing validations")

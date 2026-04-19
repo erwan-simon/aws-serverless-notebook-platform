@@ -38,16 +38,21 @@ function failedStatusBadge(status, taskArn, executionId) {
   return '<a class="status-badge status-failed" href="' + url + '" target="_blank" title="View CloudWatch logs" style="text-decoration:none;">' + status + ' &#8599;</a>';
 }
 
-// context: "notebook" | "session" | null (no filter)
+// context: "notebook" | "jupyter_session" | "codeserver_session" | null (no filter)
+const VALIDATION_STATUS_FIELD = {
+  notebook: "validation_notebook_status",
+  jupyter_session: "validation_jupyter_session_status",
+  codeserver_session: "validation_codeserver_session_status",
+};
 async function loadConfigurationOptions(selectEl, defaultValue, context) {
   selectEl.innerHTML = "";
   try {
     const res = await fetch(CONFIG.apiBaseUrl + "/api/configurations");
     if (res.ok) {
       const configs = await res.json();
+      const field = VALIDATION_STATUS_FIELD[context];
       for (const cfg of configs) {
-        if (context === "notebook" && cfg.validation_notebook_status === "FAILED") continue;
-        if (context === "session" && cfg.validation_session_status === "FAILED") continue;
+        if (field && cfg[field] === "FAILED") continue;
         const key = cfg.ecr_image_uri + "||" + cfg.iam_role_arn;
         const opt = document.createElement("option");
         opt.value = key;

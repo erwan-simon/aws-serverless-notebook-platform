@@ -8,9 +8,6 @@ import boto3
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-# Pattern to extract --ServerApp.base_url value from the Jupyter command
-_BASE_URL_RE = re.compile(r"--ServerApp\.base_url=(\S+)")
-
 HEADERS = {
     "Content-Type": "application/json",
     "Access-Control-Allow-Origin": "*",
@@ -42,12 +39,25 @@ def _response(status, service_name, message=None, url=None, **extra):
 
 def handler(event, context):
     if event.get("headers", {}).get("x-origin-verify") != _origin_secret:
-        return {"statusCode": 403, "headers": HEADERS, "body": json.dumps({"error": "Forbidden"})}
+        return {
+            "statusCode": 403,
+            "headers": HEADERS,
+            "body": json.dumps({"error": "Forbidden"}),
+        }
 
-    claims = event.get("requestContext", {}).get("authorizer", {}).get("jwt", {}).get("claims", {})
+    claims = (
+        event.get("requestContext", {})
+        .get("authorizer", {})
+        .get("jwt", {})
+        .get("claims", {})
+    )
     user_sub = claims.get("sub", "")
     if not user_sub:
-        return {"statusCode": 401, "headers": HEADERS, "body": json.dumps({"error": "Missing user identity"})}
+        return {
+            "statusCode": 401,
+            "headers": HEADERS,
+            "body": json.dumps({"error": "Missing user identity"}),
+        }
 
     environment_name = os.environ["ENVIRONMENT_NAME"]
     cluster_name = os.environ["ECS_CLUSTER_NAME"]
@@ -63,7 +73,11 @@ def handler(event, context):
             active_service = svc
             break
         if svc["status"] == "DRAINING":
-            return _response("draining", service_name, message="Previous session is shutting down, please wait...")
+            return _response(
+                "draining",
+                service_name,
+                message="Previous session is shutting down, please wait...",
+            )
 
     if not active_service:
         return _response("stopped", service_name)
@@ -71,26 +85,53 @@ def handler(event, context):
     alb_dns_name = os.environ["ALB_DNS_NAME"]
 
     # Check for running tasks
-    tasks = ecs.list_tasks(cluster=cluster_name, serviceName=service_name, desiredStatus="RUNNING")
+    tasks = ecs.list_tasks(
+        cluster=cluster_name, serviceName=service_name, desiredStatus="RUNNING"
+    )
 
     if not tasks["taskArns"]:
         # No running tasks — check stopped tasks for failure info
-        stopped = ecs.list_tasks(cluster=cluster_name, serviceName=service_name, desiredStatus="STOPPED")
+        stopped = ecs.list_tasks(
+            cluster=cluster_name, serviceName=service_name, desiredStatus="STOPPED"
+        )
         if stopped["taskArns"]:
-            stopped_details = ecs.describe_tasks(cluster=cluster_name, tasks=stopped["taskArns"])
-            task = sorted(stopped_details["tasks"], key=lambda t: t.get("stoppingAt", ""), reverse=True)[0]
+            stopped_details = ecs.describe_tasks(
+                cluster=cluster_name, tasks=stopped["taskArns"]
+            )
+            task = sorted(
+                stopped_details["tasks"],
+                key=lambda t: t.get("stoppingAt", ""),
+                reverse=True,
+            )[0]
             reason = task.get("stoppedReason", "")
             container = task.get("containers", [{}])[0]
             container_reason = container.get("reason", "")
             exit_code = container.get("exitCode")
-            logger.info("Session task stopped: service=%s, reason=%s, exit_code=%s", service_name, reason or container_reason, exit_code)
+            logger.info(
+                "Session task stopped: service=%s, reason=%s, exit_code=%s",
+                service_name,
+                reason or container_reason,
+                exit_code,
+            )
 
             if "OutOfMemory" in reason or "OutOfMemory" in container_reason:
-                return _response("error", service_name, message="Container stopped: out of memory. Stop the session and start a new one with more memory.")
+                return _response(
+                    "error",
+                    service_name,
+                    message="Container stopped: out of memory. Stop the session and start a new one with more memory.",
+                )
             if "CannotPullContainerError" in reason:
-                return _response("error", service_name, message="Failed to pull the Docker image. Check the image URI.")
+                return _response(
+                    "error",
+                    service_name,
+                    message="Failed to pull the Docker image. Check the image URI.",
+                )
             if exit_code is not None and exit_code != 0:
-                return _response("error", service_name, message=f"Container exited with code {exit_code}. {container_reason}")
+                return _response(
+                    "error",
+                    service_name,
+                    message=f"Container exited with code {exit_code}. {container_reason}",
+                )
             if reason:
                 return _response("error", service_name, message=reason)
 
@@ -122,25 +163,29 @@ def handler(event, context):
 
     last_status = task["lastStatus"]
     if last_status != "RUNNING":
-        return _response("starting", service_name, message=f"Task is {last_status.lower()}...", **extra)
+        return _response(
+            "starting",
+            service_name,
+            message=f"Task is {last_status.lower()}...",
+            **extra,
+        )
 
     if task.get("healthStatus") != "HEALTHY":
-        return _response("starting", service_name, message="Container is running, waiting for health check...", **extra)
+        return _response(
+            "starting",
+            service_name,
+            message="Container is running, waiting for health check...",
+            **extra,
+        )
 
-    jupyter_token = ""
-    for env_var in container_def.get("environment", []):
-        if env_var["name"] == "JUPYTER_TOKEN":
-            jupyter_token = env_var["value"]
-            break
-
-    # Extract base_url (includes session UUID) from the Jupyter command
-    command = container_def.get("command", [""])[0]
-    match = _BASE_URL_RE.search(command)
-    assert match, f"Could not extract base_url from task definition command: {command}"
-    base_url = match.group(1)
+    env = {v["name"]: v["value"] for v in container_def.get("environment", [])}
+    jupyter_token = env.get("JUPYTER_TOKEN", "")
+    base_url = env["BASE_URL"]
+    session_type = env.get("SESSION_TYPE", "jupyter")
 
     url = f"http://{alb_dns_name}{base_url}"
-    if jupyter_token:
+    if session_type == "jupyter" and jupyter_token:
         url += f"?token={jupyter_token}"
 
+    extra["session_type"] = session_type
     return _response("running", service_name, url=url, **extra)

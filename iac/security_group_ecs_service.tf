@@ -17,6 +17,13 @@ resource "aws_security_group" "ecs_service" {
     protocol        = "tcp"
     security_groups = [aws_security_group.alb.id]
   }
+  ingress {
+    description     = "Jupyter from ALB"
+    from_port       = 8443
+    to_port         = 8443
+    protocol        = "tcp"
+    security_groups = [aws_security_group.alb.id]
+  }
 
   ingress {
     description = "EFS and internal traffic from public subnets"

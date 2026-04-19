@@ -176,18 +176,27 @@ def handler(event, context):
             "body": json.dumps({"error": "Notebook validation launch failed"}),
         }
 
-    # Validation 2: start Jupyter and check health endpoint
-    session_command = (
-        "jupyter lab --ip=0.0.0.0 --port=8888 --allow-root --no-browser --ServerApp.token='' & "
-        "for i in $(seq 1 30); do sleep 2; curl -sf http://localhost:8888/api && exit 0; done; exit 1"
-    )
-    session_exec_id = invoke_validation({"command": session_command})
-    if not session_exec_id:
-        return {
-            "statusCode": 500,
-            "headers": HEADERS,
-            "body": json.dumps({"error": "Session validation launch failed"}),
-        }
+    session_validation_commands = {
+        "validation_jupyter_session_execution_id": (
+            "jupyter lab --ip=0.0.0.0 --port=8888 --allow-root --no-browser --ServerApp.token='' & "
+            "for i in $(seq 1 30); do sleep 2; curl -sf http://localhost:8888/api && exit 0; done; exit 1"
+        ),
+        "validation_codeserver_session_execution_id": (
+            "code-server --auth none --bind-addr 0.0.0.0:8443 --disable-telemetry "
+            "--disable-update-check & "
+            "for i in $(seq 1 30); do sleep 2; curl -sf http://localhost:8443/healthz && exit 0; done; exit 1"
+        ),
+    }
+    session_exec_ids = {}
+    for field, command in session_validation_commands.items():
+        eid = invoke_validation({"command": command})
+        if not eid:
+            return {
+                "statusCode": 500,
+                "headers": HEADERS,
+                "body": json.dumps({"error": f"{field} launch failed"}),
+            }
+        session_exec_ids[field] = eid
 
     dynamodb = boto3.resource("dynamodb")
     table = dynamodb.Table(os.environ["CONFIGURATIONS_TABLE"])
@@ -213,7 +222,7 @@ def handler(event, context):
         "created_at": datetime.now(timezone.utc).isoformat(),
         "created_by": created_by,
         "validation_notebook_execution_id": notebook_exec_id,
-        "validation_session_execution_id": session_exec_id,
+        **session_exec_ids,
     }
     if description:
         item["description"] = description
@@ -222,12 +231,12 @@ def handler(event, context):
 
     table.put_item(Item=item)
     logger.info(
-        "Configuration created: id=%s, name=%s, labels=%s, notebook_validation=%s, session_validation=%s",
+        "Configuration created: id=%s, name=%s, labels=%s, notebook_validation=%s, session_validations=%s",
         item["id"],
         name,
         labels or [],
         notebook_exec_id,
-        session_exec_id,
+        session_exec_ids,
     )
 
     if labels:

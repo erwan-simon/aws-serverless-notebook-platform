@@ -60,6 +60,20 @@
         </div>
     </dialog>
 
+    <dialog id="runSessionDialog">
+        <h3>Run Session</h3>
+        <p id="runSessionCfgName" style="margin:0 0 12px; color:#555;"></p>
+        <label for="runSessionType">Session type</label>
+        <select id="runSessionType">
+            <option value="jupyter">JupyterLab (notebook)</option>
+            <option value="codeserver">VS Code (code-server)</option>
+        </select>
+        <div style="margin-top:16px;">
+            <button class="btn-submit" id="runSessionSubmitBtn">Launch</button>
+            <button class="btn-cancel" id="runSessionCancelBtn">Cancel</button>
+        </div>
+    </dialog>
+
     <dialog id="editDialog">
         <h3>Edit Configuration</h3>
         <input type="hidden" id="editId">
@@ -175,7 +189,8 @@
                     html += '</div>';
                     html += '<div style="display:flex;align-items:center;gap:8px;">';
                     html += validationBadge("Notebook", cfg.validation_notebook_execution_id, cfg.validation_notebook_status);
-                    html += validationBadge("Session", cfg.validation_session_execution_id, cfg.validation_session_status);
+                    html += validationBadge("Jupyter", cfg.validation_jupyter_session_execution_id, cfg.validation_jupyter_session_status);
+                    html += validationBadge("VS Code", cfg.validation_codeserver_session_execution_id, cfg.validation_codeserver_session_status);
                     if (isManaged) {
                         html += '<span style="font-size:12px;color:#999;font-style:italic;">Terraform</span>';
                     }
@@ -223,10 +238,12 @@
                 filtersEl.innerHTML = '<select id="filterCfgLabel"><option value="">All labels</option>' +
                     cfgLabels.map(l => '<option value="' + l + '">' + l + '</option>').join("") + '</select>'
                     + ' <select id="filterCfgNotebook" title="Notebook compatibility">' + compatOptions.replace('>All<', '>Notebook: all<') + '</select>'
-                    + ' <select id="filterCfgSession" title="Session compatibility">' + compatOptions.replace('>All<', '>Session: all<') + '</select>';
+                    + ' <select id="filterCfgJupyter" title="Jupyter session compatibility">' + compatOptions.replace('>All<', '>Jupyter: all<') + '</select>'
+                    + ' <select id="filterCfgCodeserver" title="VS Code session compatibility">' + compatOptions.replace('>All<', '>VS Code: all<') + '</select>';
                 document.getElementById("filterCfgLabel").addEventListener("change", renderFilteredConfigs);
                 document.getElementById("filterCfgNotebook").addEventListener("change", renderFilteredConfigs);
-                document.getElementById("filterCfgSession").addEventListener("change", renderFilteredConfigs);
+                document.getElementById("filterCfgJupyter").addEventListener("change", renderFilteredConfigs);
+                document.getElementById("filterCfgCodeserver").addEventListener("change", renderFilteredConfigs);
                 renderFilteredConfigs();
             }
 
@@ -240,11 +257,13 @@
             function renderFilteredConfigs() {
                 const labelVal = document.getElementById("filterCfgLabel").value;
                 const nbVal = document.getElementById("filterCfgNotebook").value;
-                const sessVal = document.getElementById("filterCfgSession").value;
+                const jupyterVal = document.getElementById("filterCfgJupyter").value;
+                const codeserverVal = document.getElementById("filterCfgCodeserver").value;
                 const filtered = allConfigs.filter(c => {
                     if (labelVal && !(c.labels || []).includes(labelVal)) return false;
                     if (nbVal && compatBucket(c.validation_notebook_execution_id, c.validation_notebook_status) !== nbVal) return false;
-                    if (sessVal && compatBucket(c.validation_session_execution_id, c.validation_session_status) !== sessVal) return false;
+                    if (jupyterVal && compatBucket(c.validation_jupyter_session_execution_id, c.validation_jupyter_session_status) !== jupyterVal) return false;
+                    if (codeserverVal && compatBucket(c.validation_codeserver_session_execution_id, c.validation_codeserver_session_status) !== codeserverVal) return false;
                     return true;
                 });
                 let html = '<div class="cfg-list">';
@@ -320,12 +339,18 @@
 
                 if (action === "run-session") {
                     const cfg = JSON.parse(btn.dataset.cfg);
-                    btn.textContent = "Launching...";
-                    const res = await fetch(CONFIG.apiBaseUrl + "/api/sessions", {
-                        method: "POST", headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ ecr_image_uri: cfg.ecr_image_uri, iam_role_arn: cfg.iam_role_arn, vcpu: parseInt(cfg.vcpu), memory: parseInt(cfg.memory) }),
-                    });
-                    if (res.ok) { window.location.href = "session.html"; } else { const err = await res.json().catch(() => ({})); alert("Launch failed: " + (err.error || res.status)); btn.textContent = "Run Session"; }
+                    document.getElementById("runSessionCfgName").textContent = cfg.name || "";
+                    const typeSelect = document.getElementById("runSessionType");
+                    const jupyterOk = cfg.validation_jupyter_session_status === "SUCCEEDED";
+                    const codeserverOk = cfg.validation_codeserver_session_status === "SUCCEEDED";
+                    typeSelect.querySelector('option[value="jupyter"]').disabled = !jupyterOk;
+                    typeSelect.querySelector('option[value="codeserver"]').disabled = !codeserverOk;
+                    typeSelect.value = jupyterOk ? "jupyter" : (codeserverOk ? "codeserver" : "jupyter");
+                    const submitBtn = document.getElementById("runSessionSubmitBtn");
+                    submitBtn.dataset.cfg = btn.dataset.cfg;
+                    submitBtn.disabled = !jupyterOk && !codeserverOk;
+                    submitBtn.textContent = "Launch";
+                    document.getElementById("runSessionDialog").showModal();
                 }
 
                 if (action === "edit") {
@@ -339,6 +364,24 @@
                     populateVcpuSelect(editVcpu, editMemory, parseInt(cfg.vcpu), parseInt(cfg.memory));
                     editDialog.showModal();
                 }
+            });
+
+            // Run Session dialog
+            const runSessionDialog = document.getElementById("runSessionDialog");
+            document.getElementById("runSessionCancelBtn").addEventListener("click", () => runSessionDialog.close());
+            document.getElementById("runSessionSubmitBtn").addEventListener("click", async () => {
+                const submitBtn = document.getElementById("runSessionSubmitBtn");
+                const cfg = JSON.parse(submitBtn.dataset.cfg || "{}");
+                const sessionType = document.getElementById("runSessionType").value;
+                submitBtn.disabled = true; submitBtn.textContent = "Launching...";
+                const res = await fetch(CONFIG.apiBaseUrl + "/api/sessions", {
+                    method: "POST", headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ ecr_image_uri: cfg.ecr_image_uri, iam_role_arn: cfg.iam_role_arn, vcpu: parseInt(cfg.vcpu), memory: parseInt(cfg.memory), session_type: sessionType }),
+                });
+                if (res.ok) { window.location.href = "session.html"; return; }
+                const err = await res.json().catch(() => ({}));
+                alert("Launch failed: " + (err.error || res.status));
+                submitBtn.disabled = false; submitBtn.textContent = "Launch";
             });
 
             // Edit dialog

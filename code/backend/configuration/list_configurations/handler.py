@@ -19,10 +19,20 @@ _origin_secret = _ssm.get_parameter(
 )["Parameter"]["Value"]
 assert _origin_secret, "Failed to retrieve origin verify secret from SSM"
 
-SESSION_VALIDATION_COMMAND = (
+JUPYTER_SESSION_VALIDATION_COMMAND = (
     "jupyter lab --ip=0.0.0.0 --port=8888 --allow-root --no-browser --ServerApp.token='' & "
     "for i in $(seq 1 30); do sleep 2; curl -sf http://localhost:8888/api && exit 0; done; exit 1"
 )
+CODESERVER_SESSION_VALIDATION_COMMAND = (
+    "code-server --auth none --bind-addr 0.0.0.0:8888 --disable-telemetry "
+    "--disable-update-check & "
+    "for i in $(seq 1 30); do sleep 2; curl -sf http://localhost:8888/healthz && exit 0; done; exit 1"
+)
+
+SESSION_VALIDATION_FIELDS = {
+    "validation_jupyter_session_execution_id": JUPYTER_SESSION_VALIDATION_COMMAND,
+    "validation_codeserver_session_execution_id": CODESERVER_SESSION_VALIDATION_COMMAND,
+}
 
 
 def _invoke_validation(lambda_client, run_fn, item, extra):
@@ -154,18 +164,19 @@ def handler(event, context):
                     "Failed to launch notebook validation for %s: %s", item.get("id"), e
                 )
 
-        if not item.get("validation_session_execution_id"):
-            try:
-                eid = _invoke_validation(
-                    lambda_client, run_fn, item, {"command": SESSION_VALIDATION_COMMAND}
-                )
-                if eid:
-                    item["validation_session_execution_id"] = eid
-                    updates["validation_session_execution_id"] = eid
-            except Exception as e:
-                logger.warning(
-                    "Failed to launch session validation for %s: %s", item.get("id"), e
-                )
+        for field, command in SESSION_VALIDATION_FIELDS.items():
+            if not item.get(field):
+                try:
+                    eid = _invoke_validation(
+                        lambda_client, run_fn, item, {"command": command}
+                    )
+                    if eid:
+                        item[field] = eid
+                        updates[field] = eid
+                except Exception as e:
+                    logger.warning(
+                        "Failed to launch %s for %s: %s", field, item.get("id"), e
+                    )
 
         if updates:
             table.update_item(
@@ -176,12 +187,13 @@ def handler(event, context):
             )
 
     # Resolve validation statuses from executions table
+    status_fields = (
+        "validation_notebook_execution_id",
+        *SESSION_VALIDATION_FIELDS.keys(),
+    )
     exec_ids = set()
     for item in items:
-        for key in (
-            "validation_notebook_execution_id",
-            "validation_session_execution_id",
-        ):
+        for key in status_fields:
             eid = item.get(key)
             if eid:
                 exec_ids.add(eid)
@@ -202,12 +214,11 @@ def handler(event, context):
             exec_statuses[ex["id"]] = ex.get("status", "PENDING")
 
     for item in items:
-        nb_eid = item.get("validation_notebook_execution_id")
-        sess_eid = item.get("validation_session_execution_id")
-        if nb_eid:
-            item["validation_notebook_status"] = exec_statuses.get(nb_eid, "PENDING")
-        if sess_eid:
-            item["validation_session_status"] = exec_statuses.get(sess_eid, "PENDING")
+        for key in status_fields:
+            eid = item.get(key)
+            if eid:
+                status_key = key.replace("_execution_id", "_status")
+                item[status_key] = exec_statuses.get(eid, "PENDING")
 
     items.sort(key=lambda x: x.get("created_at", ""), reverse=True)
 

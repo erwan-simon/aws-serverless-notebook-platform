@@ -17,7 +17,13 @@
     </style>
 </head>
 <body>
-    <h1>Launch Jupyter Session</h1>
+    <h1>Launch Session</h1>
+
+    <label for="sessionType">Session type</label>
+    <select id="sessionType">
+        <option value="jupyter">JupyterLab (notebook)</option>
+        <option value="codeserver">VS Code (code-server)</option>
+    </select>
 
     <label for="config">Configuration</label>
     <select id="config"></select>
@@ -37,12 +43,18 @@
         (async function () {
             await window._authReady;
 
+            const sessionTypeSelect = document.getElementById("sessionType");
             const configSelect = document.getElementById("config");
-            await loadConfigurationOptions(configSelect, null, "session");
-
             const vcpuSelect = document.getElementById("vcpu");
             const memorySelect = document.getElementById("memory");
-            wireConfigSelects(configSelect, vcpuSelect, memorySelect);
+
+            async function reloadConfigs() {
+                const ctx = sessionTypeSelect.value + "_session";
+                await loadConfigurationOptions(configSelect, null, ctx);
+                wireConfigSelects(configSelect, vcpuSelect, memorySelect);
+            }
+            await reloadConfigs();
+            sessionTypeSelect.addEventListener("change", reloadConfigs);
 
             document.getElementById("launchBtn").addEventListener("click", async () => {
                 const btn = document.getElementById("launchBtn");
@@ -56,6 +68,7 @@
                         ...getSelectedConfig(configSelect),
                         vcpu: parseInt(vcpuSelect.value),
                         memory: parseInt(memorySelect.value),
+                        session_type: sessionTypeSelect.value,
                     }),
                 });
                 const data = await res.json();
