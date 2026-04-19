@@ -262,6 +262,7 @@ def handler(event, context):
 
     if session_type == "jupyter":
         app_port = 8888
+        tg_protocol = "HTTP"
         container_command = (
             f"exec jupyter lab --ip=0.0.0.0 --port={app_port} --allow-root"
             f" --ServerApp.token=\"${{JUPYTER_TOKEN}}\" --ServerApp.password=''"
@@ -281,6 +282,7 @@ def handler(event, context):
         # code-server: auth is delegated to CloudFront JWT + x-origin-verify + WAF;
         # the ALB is not reachable directly, so --auth none is acceptable here.
         app_port = 8443
+        tg_protocol = "HTTP"
         container_command = (
             f"exec code-server --auth none --bind-addr 0.0.0.0:{app_port}"
             " --disable-telemetry --disable-update-check /home/user"
@@ -291,7 +293,7 @@ def handler(event, context):
         health_path = "/healthz"
         health_check_command = [
             "CMD-SHELL",
-            f"curl -fksSL http://127.0.0.1:{app_port}{health_path} >> /proc/1/fd/1 2>&1 || exit 1",
+            f"curl -fsSL http://127.0.0.1:{app_port}{health_path} >> /proc/1/fd/1 2>&1 || exit 1",
         ]
 
     try:
@@ -433,11 +435,11 @@ def handler(event, context):
     tg_name = service_name.replace("_", "-")[:32]
     tg_resp = elbv2.create_target_group(
         Name=tg_name,
-        Protocol="HTTP",
+        Protocol=tg_protocol,
         Port=app_port,
         VpcId=vpc_id,
         TargetType="ip",
-        HealthCheckProtocol="HTTP",
+        HealthCheckProtocol=tg_protocol,
         HealthCheckPath=health_path,
         HealthCheckIntervalSeconds=30,
         HealthyThresholdCount=2,

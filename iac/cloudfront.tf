@@ -54,6 +54,22 @@ resource "aws_cloudfront_distribution" "main" {
     }
   }
 
+  # ALB origin — CloudFront proxies /s/* requests to the sessions ALB so the
+  # browser loads code-server / JupyterLab over HTTPS (required for the Jupyter
+  # extension's secure-context features). The ALB listener is HTTP only, so
+  # CloudFront ↔ ALB is HTTP; the viewer ↔ CloudFront hop is HTTPS.
+  origin {
+    domain_name = aws_lb.sessions.dns_name
+    origin_id   = "sessions-alb"
+
+    custom_origin_config {
+      http_port              = 80
+      https_port             = 443
+      origin_protocol_policy = "http-only"
+      origin_ssl_protocols   = ["TLSv1.2"]
+    }
+  }
+
   ordered_cache_behavior {
     path_pattern           = "/api/*"
     allowed_methods        = ["GET", "HEAD", "OPTIONS", "PUT", "POST", "PATCH", "DELETE"]
@@ -66,6 +82,29 @@ resource "aws_cloudfront_distribution" "main" {
       headers      = ["Authorization", "Content-Type"]
       cookies {
         forward = "none"
+      }
+    }
+
+    min_ttl     = 0
+    default_ttl = 0
+    max_ttl     = 0
+  }
+
+  # /s/* — routes interactive session traffic (JupyterLab, code-server) through
+  # CloudFront so the browser sees HTTPS. Forwards all headers and cookies so
+  # WebSockets and auth tokens flow through; caching disabled.
+  ordered_cache_behavior {
+    path_pattern           = "/s/*"
+    allowed_methods        = ["GET", "HEAD", "OPTIONS", "PUT", "POST", "PATCH", "DELETE"]
+    cached_methods         = ["GET", "HEAD"]
+    target_origin_id       = "sessions-alb"
+    viewer_protocol_policy = "redirect-to-https"
+
+    forwarded_values {
+      query_string = true
+      headers      = ["*"]
+      cookies {
+        forward = "all"
       }
     }
 

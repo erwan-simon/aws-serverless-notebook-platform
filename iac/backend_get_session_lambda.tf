@@ -33,9 +33,9 @@ module "get_session" {
   origin_verify_secret_ssm_name = aws_ssm_parameter.cf_origin_secret.name
   iam_policy_json               = data.aws_iam_policy_document.get_session_lambda.json
   environment_variables = {
-    ECS_CLUSTER_NAME = aws_ecs_cluster.main.name
-    ENVIRONMENT_NAME = local.environment_name
-    ALB_DNS_NAME     = aws_lb.sessions.dns_name
+    ECS_CLUSTER_NAME  = aws_ecs_cluster.main.name
+    ENVIRONMENT_NAME  = local.environment_name
+    FRONTEND_BASE_URL = "https://${aws_cloudfront_distribution.main.domain_name}"
   }
   tags_map = {
     Appli          = var.project_name

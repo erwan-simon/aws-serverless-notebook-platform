@@ -82,7 +82,7 @@ def handler(event, context):
     if not active_service:
         return _response("stopped", service_name)
 
-    alb_dns_name = os.environ["ALB_DNS_NAME"]
+    frontend_base_url = os.environ["FRONTEND_BASE_URL"]
 
     # Check for running tasks
     tasks = ecs.list_tasks(
@@ -183,7 +183,7 @@ def handler(event, context):
     base_url = env["BASE_URL"]
     session_type = env.get("SESSION_TYPE", "jupyter")
 
-    url = f"http://{alb_dns_name}{base_url}"
+    url = f"{frontend_base_url}{base_url}"
     if session_type == "jupyter" and jupyter_token:
         url += f"?token={jupyter_token}"
 
