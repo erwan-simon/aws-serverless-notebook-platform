@@ -1,6 +1,6 @@
 # AWS Serverless Notebook Platform
 
-A self-hosted, serverless platform for managing and executing Jupyter notebooks on AWS. Built entirely with Terraform, it provides a web portal to upload notebooks, launch interactive Jupyter sessions on ECS Fargate, run notebooks as batch jobs, and schedule recurring executions — all behind Cognito authentication and CloudFront.
+A self-hosted, serverless platform for managing and executing Jupyter notebooks on AWS. Built entirely with Terraform, it provides a web portal to upload notebooks, launch interactive Jupyter or VS Code remote sessions on ECS Fargate, run notebooks as batch jobs, and schedule recurring executions — all behind Cognito authentication and CloudFront.
 
 | ![Notebooks list](docs/screenshots/notebooks_list.png) | ![Notebook viewer](docs/screenshots/notebook.png) |
 |:---:|:---:|
@@ -9,7 +9,7 @@ A self-hosted, serverless platform for managing and executing Jupyter notebooks 
 ## Features
 
 - **Notebook Management** — Upload, organize in folders, delete, and view rendered notebooks
-- **Interactive Sessions** — Launch on-demand Jupyter environments on ECS Fargate with configurable CPU/memory
+- **Interactive Sessions** — Launch on-demand Jupyter or VS Code remote sessions on ECS Fargate with configurable CPU/memory
 - **Batch Execution** — Run notebooks as one-off ECS tasks with real-time status tracking
 - **Scheduling** — Cron-based recurring execution via EventBridge Scheduler
 - **Dockerized Environments** — Dependencies managed via Docker images
@@ -32,7 +32,7 @@ User → WAF → CloudFront ──→ S3 (frontend SPA)
                                         └── EFS (persistent storage)
 
 Session traffic:
-User → WAF → CloudFront → ALB (/s/{service_name}/*) → ECS task (Jupyter)
+User → WAF → CloudFront → ALB (/s/{service_name}/{session_id}/*) → ECS task (JupyterLab or code-server)
 
 EventBridge ──→ Lambda (status sync, session cleanup)
            └──→ SNS (task failure alerts)
@@ -158,11 +158,12 @@ Configurations pair a Docker image URI with an IAM role ARN, along with default 
 
 **Terraform-managed configurations** are defined in the `MANAGED_CONFIGURATIONS` environment variable of the `list_configurations` Lambda (see `iac/backend_list_configurations_lambda.tf`). They are automatically seeded into DynamoDB and cannot be edited or deleted from the UI.
 
-**Custom configurations** can be added from the UI. When created, two validations are launched automatically:
+**Custom configurations** can be added from the UI. When created, three validations are launched automatically:
 1. **Notebook validation** — Runs a hello_world notebook with papermill
-2. **Session validation** — Starts JupyterLab and health-checks the API endpoint
+2. **Jupyter session validation** — Starts JupyterLab and health-checks the `/api` endpoint
+3. **VS Code remote session validation** — Starts code-server and health-checks the `/healthz` endpoint
 
-Configurations that fail validation are filtered from the relevant dropdowns (e.g. a config that fails session validation won't appear in the session launch dropdown).
+Each session type is enabled on a configuration only if its validation succeeded — configurations that fail Jupyter validation won't be selectable as a Jupyter session, and likewise for code-server.
 
 ### Adding Terraform-managed Configurations
 
@@ -201,11 +202,12 @@ Custom ECR repositories referenced from a configuration must also carry the `{pr
 
 ## Base Docker Image
 
-The default Jupyter image is built from `code/docker_images/default/Dockerfile`:
+The default image is built from `code/docker_images/default/Dockerfile` and supports both Jupyter and VS Code remote sessions:
 
 - **Base**: `jupyter/base-notebook:x86_64-ubuntu-22.04`
 - **System packages**: awscli, curl
 - **Python tools**: papermill, uv, jupyterlab-lsp, jedi-language-server
+- **code-server**: installed via the official installer for VS Code remote sessions
 - **Default kernel**: Python with awswrangler, ipykernel (installed via uv in a dedicated venv)
 
 The image tag is a SHA1 hash of the build context, so any file change triggers a rebuild on `terraform apply`.
@@ -237,7 +239,7 @@ All routes require Cognito JWT authentication and are proxied through CloudFront
 
 | Method | Route | Description |
 |--------|-------|-------------|
-| `POST` | `/api/sessions` | Launch a Jupyter session |
+| `POST` | `/api/sessions` | Launch a Jupyter or VS Code remote session (via `session_type` in payload) |
 | `GET` | `/api/sessions/me` | Get current user's session |
 | `DELETE` | `/api/sessions/{service_name}` | Stop a session |
 
@@ -257,7 +259,7 @@ All routes require Cognito JWT authentication and are proxied through CloudFront
 - **WAF v2** (CloudFront + ALB) — Rate limiting, geo-blocking (configurable), IP whitelist
 - **CloudFront origin verification** — Random secret in SSM Parameter Store, injected as custom header by CloudFront, verified by every Lambda
 - **API Gateway throttling** — 10 burst / 5 rate globally, 3 burst / 1 rate for expensive operations (session launch, notebook run)
-- **ALB** — Routes session traffic (`/s/{service_name}/*`) to the correct ECS task
+- **ALB** — Routes session traffic (`/s/{service_name}/{session_id}/*`) to the correct ECS task; CloudFront proxies `/s/*` to the ALB so session URLs are served over HTTPS. Protection of `/s/*` relies on the WAF (IP allowlist, rate limit, geo) plus the unguessable random UUID in the URL.
 
 ### Authentication & Authorization
 
