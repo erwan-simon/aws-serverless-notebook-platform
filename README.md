@@ -259,7 +259,7 @@ All routes require Cognito JWT authentication and are proxied through CloudFront
 - **WAF v2** (CloudFront + ALB) — Rate limiting, geo-blocking (configurable), IP whitelist
 - **CloudFront origin verification** — Random secret in SSM Parameter Store, injected as custom header by CloudFront, verified by every Lambda
 - **API Gateway throttling** — 10 burst / 5 rate globally, 3 burst / 1 rate for expensive operations (session launch, notebook run)
-- **ALB** — Routes session traffic (`/s/{service_name}/{session_id}/*`) to the correct ECS task; CloudFront proxies `/s/*` to the ALB so session URLs are served over HTTPS. Protection of `/s/*` relies on the WAF (IP allowlist, rate limit, geo) plus the unguessable random UUID in the URL.
+- **ALB** — Routes session traffic (`/s/{service_name}/{session_id}/*`) to the correct ECS task; CloudFront proxies `/s/*` to the ALB so session URLs are served over HTTPS. Protection of `/s/*` relies on the WAF (IP allowlist, rate limit, geo) plus the unguessable random UUID in the URL. The ALB security group inbound is restricted to the AWS-managed CloudFront origin-facing prefix list, so the ALB cannot be reached directly from the public internet.
 
 ### Authentication & Authorization
 
