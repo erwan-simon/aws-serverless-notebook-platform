@@ -12,7 +12,18 @@ resource "aws_wafv2_web_acl" "main" {
   scope    = "CLOUDFRONT"
 
   default_action {
-    block {}
+    block {
+      custom_response {
+        response_code            = 403
+        custom_response_body_key = "access_denied"
+      }
+    }
+  }
+
+  custom_response_body {
+    key          = "access_denied"
+    content      = "403 Access Denied"
+    content_type = "TEXT_PLAIN"
   }
 
   rule {
@@ -20,7 +31,12 @@ resource "aws_wafv2_web_acl" "main" {
     priority = 0
 
     action {
-      block {}
+      block {
+        custom_response {
+          response_code            = 403
+          custom_response_body_key = "access_denied"
+        }
+      }
     }
 
     statement {
