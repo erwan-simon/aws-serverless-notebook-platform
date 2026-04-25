@@ -34,16 +34,6 @@ resource "aws_iam_policy_attachment" "default_configuration" {
 data "aws_iam_policy_document" "default_configuration" {
   statement {
     actions = [
-      "athena:*",
-      "s3:Get*",
-      "s3:List*",
-      "glue:*",
-      "lakeformation:*"
-    ]
-    resources = ["*"]
-  }
-  statement {
-    actions = [
       "athena:GetWorkGroup",
       "athena:StartQueryExecution",
       "athena:StopQueryExecution",
@@ -54,6 +44,48 @@ data "aws_iam_policy_document" "default_configuration" {
       "athena:BatchGetQueryExecution",
     ]
     resources = [aws_athena_workgroup.default.arn]
+  }
+  statement {
+    actions = [
+      "athena:ListWorkGroups",
+      "athena:ListDataCatalogs",
+      "athena:GetDataCatalog",
+    ]
+    resources = ["*"]
+  }
+  statement {
+    actions = [
+      "glue:GetDatabase",
+      "glue:GetDatabases",
+      "glue:GetTable",
+      "glue:GetTables",
+      "glue:GetPartition",
+      "glue:GetPartitions",
+      "glue:SearchTables",
+      "glue:GetCatalogImportStatus",
+    ]
+    resources = ["*"]
+  }
+  statement {
+    actions = [
+      "lakeformation:GetDataAccess",
+      "lakeformation:GetTemporaryGlueTableCredentials",
+    ]
+    resources = ["*"]
+  }
+  statement {
+    actions = [
+      "s3:GetBucketLocation",
+      "s3:GetObject",
+      "s3:ListBucket",
+      "s3:ListBucketMultipartUploads",
+      "s3:ListMultipartUploadParts",
+      "s3:AbortMultipartUpload",
+    ]
+    resources = [
+      aws_s3_bucket.data.arn,
+      "${aws_s3_bucket.data.arn}/*",
+    ]
   }
   statement {
     actions = [
