@@ -73,6 +73,20 @@ data "aws_iam_policy_document" "default_configuration" {
     ]
     resources = ["*"]
   }
+  # Cleanup of temporary tables created by awswrangler CTAS (always prefixed temp_table_).
+  statement {
+    actions = [
+      "glue:DeleteTable",
+      "glue:BatchDeleteTable",
+      "glue:DeletePartition",
+      "glue:BatchDeletePartition",
+    ]
+    resources = [
+      "arn:aws:glue:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:catalog",
+      "arn:aws:glue:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:database/*",
+      "arn:aws:glue:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:table/*/temp_table_*",
+    ]
+  }
   statement {
     actions = [
       "s3:GetBucketLocation",
