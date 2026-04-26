@@ -89,6 +89,21 @@ data "aws_iam_policy_document" "default_configuration" {
   }
   statement {
     actions = [
+      "glue:CreateTable",
+      "glue:UpdateTable",
+      "glue:CreatePartition",
+      "glue:BatchCreatePartition",
+      "glue:UpdatePartition",
+      "glue:BatchUpdatePartition",
+    ]
+    resources = [
+      "arn:aws:glue:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:catalog",
+      "arn:aws:glue:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:database/*",
+      "arn:aws:glue:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:table/*/*",
+    ]
+  }
+  statement {
+    actions = [
       "s3:GetBucketLocation",
       "s3:GetObject",
       "s3:ListBucket",
