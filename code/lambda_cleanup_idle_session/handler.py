@@ -37,7 +37,9 @@ def handler(event, context):
 
     if last_status != "STOPPED":
         logger.warning(
-            "Unexpected lastStatus '%s' for task %s (expected STOPPED)", last_status, task_arn
+            "Unexpected lastStatus '%s' for task %s (expected STOPPED)",
+            last_status,
+            task_arn,
         )
         return
 
@@ -60,7 +62,7 @@ def handler(event, context):
         logger.info("Task %s group is not a service (%s), skipping", task_arn, group)
         return
 
-    service_name = group[len("service:"):]
+    service_name = group[len("service:") :]
     environment_name = os.environ["ENVIRONMENT_NAME"]
 
     if not service_name.startswith(f"{environment_name}_"):
@@ -72,10 +74,18 @@ def handler(event, context):
     ecs = boto3.client("ecs")
     elbv2 = boto3.client("elbv2")
 
-    logger.info("Cleaning up idle session service %s (task %s exited cleanly)", service_name, task_arn)
+    logger.info(
+        "Cleaning up idle session service %s (task %s exited cleanly)",
+        service_name,
+        task_arn,
+    )
 
-    ecs.update_service(cluster=cluster_name, service=service_name, desiredCount=0)
-    ecs.delete_service(cluster=cluster_name, service=service_name, force=True)
+    try:
+        ecs.delete_service(cluster=cluster_name, service=service_name, force=True)
+    except ecs.exceptions.ServiceNotActiveException:
+        logger.info("Service %s already inactive, skipping delete", service_name)
+    except ecs.exceptions.ServiceNotFoundException:
+        logger.info("Service %s already gone, skipping delete", service_name)
 
     _cleanup_alb_resources(elbv2, alb_listener_arn, service_name)
 
